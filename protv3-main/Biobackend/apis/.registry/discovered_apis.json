@@ -1,0 +1,233 @@
+{
+  "Clustal Omega API": {
+    "folder_name": "Clustalo",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/clustalo",
+    "prefix": "/clustalo",
+    "category": "alignment",
+    "endpoints_count": 4,
+    "source": "EBI",
+    "description": "Multiple sequence alignment",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "T Coffee API": {
+    "folder_name": "alignment",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/tcoffee",
+    "prefix": "/tcoffee",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "EBI",
+    "description": "T-Coffee alignment",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "Mafft API": {
+    "folder_name": "alignment",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/mafft",
+    "prefix": "/mafft",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "EBI",
+    "description": "MAFFT alignment",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "Muscle API": {
+    "folder_name": "alignment",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/muscle",
+    "prefix": "/muscle",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "EBI",
+    "description": "MUSCLE alignment",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "Jalview API": {
+    "folder_name": "Jalview",
+    "base_url": "https://www.jalview.org/services",
+    "prefix": "/jalview",
+    "category": "visualization",
+    "endpoints_count": 2,
+    "source": "Jalview",
+    "description": "Jalview visualization",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "Ensembl Search API": {
+    "folder_name": "Ensembl",
+    "base_url": "https://rest.ensembl.org",
+    "prefix": "/ensembl",
+    "category": "search",
+    "endpoints_count": 5,
+    "source": "Ensembl",
+    "description": "Ensembl search and sequence APIs",
+    "discovered_at": "2026-04-12",
+    "status": "programmed"
+  },
+  "InterPro": {
+    "folder_name": "InterPro",
+    "base_url": "https://www.ebi.ac.uk/interpro",
+    "prefix": "/interpro",
+    "category": "annotation",
+    "endpoints_count": 4,
+    "source": "https://www.ebi.ac.uk/interpro/",
+    "description": "Protein family, domain and functional site annotation",
+    "discovered_at": "2026-04-16T02:52:50.255528",
+    "status": "programmed"
+  },
+  "NCBI BLAST": {
+    "folder_name": "BLAST",
+    "base_url": "https://blast.ncbi.nlm.nih.gov",
+    "prefix": "/blast",
+    "category": "search",
+    "endpoints_count": 3,
+    "source": "https://blast.ncbi.nlm.nih.gov/",
+    "description": "Basic Local Alignment Search Tool for sequence similarity",
+    "discovered_at": "2026-04-16T02:52:53.294706",
+    "status": "programmed"
+  },
+  "HMMER": {
+    "folder_name": "HMMER",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/hmmer",
+    "prefix": "/hmmer",
+    "category": "search",
+    "endpoints_count": 3,
+    "source": "https://www.ebi.ac.uk/Tools/hmmer/",
+    "description": "Protein sequence homology search using profile HMMs",
+    "discovered_at": "2026-04-16T02:52:56.217105",
+    "status": "programmed"
+  },
+  "PDBe": {
+    "folder_name": "PDBe",
+    "base_url": "https://www.ebi.ac.uk/pdbe/api",
+    "prefix": "/pdbe",
+    "category": "structure",
+    "endpoints_count": 3,
+    "source": "https://www.ebi.ac.uk/pdbe/",
+    "description": "Protein Data Bank in Europe - 3D structures",
+    "discovered_at": "2026-04-16T02:53:01.945491",
+    "status": "programmed"
+  },
+  "Clustal Omega": {
+    "folder_name": "Clustalo",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/clustalo",
+    "prefix": "/clustalo",
+    "category": "alignment",
+    "endpoints_count": 4,
+    "source": "https://www.ebi.ac.uk/Tools/msa/clustalo/",
+    "description": "Multiple sequence alignment from EBI",
+    "discovered_at": "2026-04-16T02:53:08.823957",
+    "status": "programmed"
+  },
+  "T-Coffee": {
+    "folder_name": "TCoffee",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/tcoffee",
+    "prefix": "/tcoffee",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "https://www.ebi.ac.uk/Tools/msa/tcoffee/",
+    "description": "Consistency-based multiple sequence alignment",
+    "discovered_at": "2026-04-16T02:53:11.914389",
+    "status": "programmed"
+  },
+  "MAFFT": {
+    "folder_name": "MAFFT",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/mafft",
+    "prefix": "/mafft",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "https://www.ebi.ac.uk/Tools/msa/mafft/",
+    "description": "Fast multiple sequence alignment",
+    "discovered_at": "2026-04-16T02:53:14.817738",
+    "status": "programmed"
+  },
+  "MUSCLE": {
+    "folder_name": "Muscle",
+    "base_url": "https://www.ebi.ac.uk/Tools/services/rest/muscle",
+    "prefix": "/muscle",
+    "category": "alignment",
+    "endpoints_count": 3,
+    "source": "https://www.ebi.ac.uk/Tools/msa/muscle/",
+    "description": "Multiple sequence alignment by MUSCLE",
+    "discovered_at": "2026-04-16T02:53:17.759691",
+    "status": "programmed"
+  },
+  "Ensembl": {
+    "folder_name": "Ensembl",
+    "base_url": "https://rest.ensembl.org",
+    "prefix": "/ensembl",
+    "category": "genomics",
+    "endpoints_count": 4,
+    "source": "https://rest.ensembl.org",
+    "description": "Genomic data, annotation, and variation from Ensembl",
+    "discovered_at": "2026-04-16T02:56:40.915970",
+    "status": "programmed"
+  },
+  "UniProt": {
+    "folder_name": "UniProt",
+    "base_url": "https://www.ebi.ac.uk/proteins/api",
+    "prefix": "/uniprot",
+    "category": "protein-data",
+    "endpoints_count": 4,
+    "source": "https://www.uniprot.org/",
+    "description": "Central hub for protein sequence and functional information",
+    "discovered_at": "2026-04-16T02:56:44.363935",
+    "status": "programmed"
+  },
+  "Reactome": {
+    "folder_name": "Reactome",
+    "base_url": "https://reactome.org/ContentService",
+    "prefix": "/reactome",
+    "category": "pathway-analysis",
+    "endpoints_count": 3,
+    "source": "https://reactome.org/dev",
+    "description": "Free, open-source, curated and peer-reviewed pathway database",
+    "discovered_at": "2026-04-16T02:56:47.420149",
+    "status": "programmed"
+  },
+  "NCBI E-utilities": {
+    "folder_name": "NCBI",
+    "base_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
+    "prefix": "/ncbi",
+    "category": "search",
+    "endpoints_count": 3,
+    "source": "https://www.ncbi.nlm.nih.gov/books/NBK25497/",
+    "description": "Entrez Programming Utilities for searching and retrieving NCBI data",
+    "discovered_at": "2026-04-16T02:56:52.881535",
+    "status": "programmed"
+  },
+  "AlphaFold DB": {
+    "folder_name": "AlphaFold",
+    "base_url": "https://alphafold.ebi.ac.uk/api",
+    "prefix": "/alphafold",
+    "category": "structure",
+    "endpoints_count": 2,
+    "source": "https://alphafold.ebi.ac.uk/",
+    "description": "AI-predicted 3D protein structures",
+    "discovered_at": "2026-04-16T03:05:28.050366",
+    "status": "programmed"
+  },
+  "Gene Ontology": {
+    "folder_name": "GeneOntology",
+    "base_url": "http://api.geneontology.org/api",
+    "prefix": "/go",
+    "category": "annotation",
+    "endpoints_count": 3,
+    "source": "http://geneontology.org/",
+    "description": "The Gene Ontology resource for gene function information",
+    "discovered_at": "2026-04-16T03:05:30.906436",
+    "status": "programmed"
+  },
+  "SWISS-MODEL": {
+    "folder_name": "SwissModel",
+    "base_url": "https://swissmodel.expasy.org/api",
+    "prefix": "/swissmodel",
+    "category": "structure",
+    "endpoints_count": 3,
+    "source": "https://swissmodel.expasy.org/",
+    "description": "Automated protein structure homology modeling",
+    "discovered_at": "2026-04-16T03:05:36.923621",
+    "status": "programmed"
+  }
+}

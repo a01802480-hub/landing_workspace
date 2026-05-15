@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm *)",
+      "Bash(findstr *)",
+      "Bash(python *)",
+      "Bash(npx *)",
+      "Bash(select-string *)",
+      "Bash(select-object *)",
+      "Bash(pip install *)",
+      "Bash(del *)",
+      "Bash(mkdir *)",
+      "Bash(move *)",
+      "Bash(genomics *)",
+      "Bash(dir *)",
+      "Bash(powershell *)",
+      "Bash(rmdir *)",
+      "Bash(d *)",
+      "Bash(@echo *)",
+      "Bash(timeout *)",
+      "Bash(curl *)",
+      "Bash(type *)",
+      "Bash(taskkill *)",
+      "Bash(start *)",
+      "Bash(tasklist)",
+      "Bash(echo.)"
+    ]
+  },
+  "$version": 3
+}

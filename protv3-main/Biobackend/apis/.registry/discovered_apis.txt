@@ -1,0 +1,22 @@
+# API Registry - Tracks all discovered APIs
+# Auto-maintained by autonomous agent
+# Format: api_name|category|folder|status|discovered_at
+
+# Search APIs
+uniprot_router|search|apis/search|active|2026-04-12
+ensembl_search_router|search|apis/search|active|2026-04-12
+ensembl_sequence_router|search|apis/search|active|2026-04-12
+ensembl_evolution_router|search|apis/search|active|2026-04-12
+
+# Genomics APIs
+bio_router|genomics|apis/genomics|active|2026-04-12
+proteogenomics_router|genomics|apis/genomics|active|2026-04-12
+ensembl_genomics_router|genomics|apis/genomics|active|2026-04-12
+ensembl_info_router|genomics|apis/genomics|active|2026-04-12
+
+# Alignment APIs
+clustal_omega_router|alignment|apis/alignment|active|2026-04-12
+t_coffee_router|alignment|apis/alignment|active|2026-04-12
+mafft_router|alignment|apis/alignment|active|2026-04-12
+muscle_router|alignment|apis/alignment|active|2026-04-12
+jalview_router|alignment|apis/alignment|active|2026-04-12
