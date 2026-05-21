@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function SignIn() {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -18,52 +20,63 @@ export default function SignIn() {
     setError('');
     setLoading(true);
 
-    // Simulate authentication delay
-    setTimeout(() => {
-      if (isSignUp) {
-        // Sign up logic
-        if (email && password && name) {
-          console.log('Sign up successful, setting auth data');
-          localStorage.setItem('user', JSON.stringify({ email, name }));
-          localStorage.setItem('isAuthenticated', 'true');
-          console.log('Redirecting to workspace...');
-          
-          // Use window.location for a hard redirect to ensure it works
-          window.location.href = '/workspace';
-        } else {
-          setError('Please fill in all fields');
-          setLoading(false);
-        }
-      } else {
-        // Sign in logic - test credentials
-        if (email === 'example@gmail.com' && password === '1234567') {
-          console.log('Sign in successful, setting auth data');
-          localStorage.setItem('user', JSON.stringify({ email: 'example@gmail.com', name: 'Test User' }));
-          localStorage.setItem('isAuthenticated', 'true');
-          console.log('LocalStorage set:', {
-            isAuthenticated: localStorage.getItem('isAuthenticated'),
-            user: localStorage.getItem('user')
-          });
-          console.log('Redirecting to workspace...');
-          
-          // Use window.location for a hard redirect
-          window.location.href = '/workspace';
-        } else {
-          setError('Invalid email or password. For testing use: example@gmail.com / 1234567');
-          setLoading(false);
-        }
+    // Trim whitespace from inputs
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    console.log('Attempting authentication...', { email: trimmedEmail, hasPassword: !!trimmedPassword });
+
+    try {
+      const endpoint = isSignUp ? '/auth/register' : '/auth/login';
+      const payload = isSignUp 
+        ? { email: trimmedEmail, password: trimmedPassword, name }
+        : { email: trimmedEmail, password: trimmedPassword };
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Authentication failed');
       }
-    }, 500);
+
+      console.log('✓ Authentication successful, setting auth data');
+      
+      // Store tokens and user data
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('isAuthenticated', 'true');
+      
+      console.log('✓ LocalStorage set:', {
+        isAuthenticated: localStorage.getItem('isAuthenticated'),
+        user: localStorage.getItem('user')
+      });
+      console.log('✓ Redirecting to workspace...');
+      
+      // Use window.location for a hard redirect
+      window.location.href = '/workspace';
+    } catch (err: any) {
+      console.error('✗ Authentication failed:', err);
+      setError(err.message || 'Invalid email or password');
+      setLoading(false);
+    }
   };
 
   const handleGoogleSignIn = () => {
     // TODO: Implement Google OAuth
-    alert('Google OAuth integration coming soon! For now, use email: example@gmail.com and password: 1234567');
+    alert('Google OAuth integration coming soon! For now, use email/password authentication.');
   };
 
   const handleGitHubSignIn = () => {
     // TODO: Implement GitHub OAuth
-    alert('GitHub OAuth integration coming soon! For now, use email: example@gmail.com and password: 1234567');
+    alert('GitHub OAuth integration coming soon! For now, use email/password authentication.');
   };
 
   return (
@@ -194,11 +207,24 @@ export default function SignIn() {
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 placeholder="••••••••"
                 required
+                minLength={6}
               />
               {!isSignUp && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Test credentials: example@gmail.com / 1234567
-                </p>
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Test credentials: example@gmail.com / 1234567
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('example@gmail.com');
+                      setPassword('1234567');
+                    }}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 underline"
+                  >
+                    Auto-fill test credentials
+                  </button>
+                </div>
               )}
             </div>
 

@@ -1,0 +1,11 @@
+name = "biostream-landing"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = ".vercel/output/static"
+
+# Environment variables for production
+[vars]
+NEXT_PUBLIC_API_URL = "https://your-backend-url.com"
+
+# For development/staging environment
+[env.staging.vars]
+NEXT_PUBLIC_API_URL = "https://staging-backend-url.com"

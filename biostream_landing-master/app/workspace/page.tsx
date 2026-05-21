@@ -3,34 +3,78 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function Workspace() {
   const router = useRouter();
-  const [status, setStatus] = useState('Initializing...');
+  const [status, setStatus] = useState('Verifying authentication...');
+  const [isValidating, setIsValidating] = useState(true);
 
   useEffect(() => {
     console.log('Workspace page loaded');
     
-    // Check authentication
-    const isAuthenticated = localStorage.getItem('isAuthenticated');
-    console.log('Auth status:', isAuthenticated);
-    
-    if (!isAuthenticated || isAuthenticated !== 'true') {
-      console.log('Not authenticated! Redirecting to signin...');
-      setStatus('Redirecting to sign in...');
-      router.replace('/signin');
-      return;
-    }
+    const validateAuth = async () => {
+      // Check if we have a token
+      const accessToken = localStorage.getItem('access_token');
+      console.log('Access token:', accessToken ? 'Present' : 'Missing');
+      
+      if (!accessToken) {
+        console.log('No access token! Redirecting to signin...');
+        setStatus('Redirecting to sign in...');
+        router.replace('/signin');
+        return;
+      }
 
-    console.log('Authenticated! Redirecting to BioStream...');
-    setStatus('Connecting to BioStream workspace...');
-    
-    // Force immediate redirect
-    const redirectTimer = setTimeout(() => {
-      console.log('Executing redirect to http://localhost:3001');
-      window.location.replace('http://localhost:3001');
-    }, 500);
+      try {
+        // Validate token with backend
+        setStatus('Validating with server...');
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
 
-    return () => clearTimeout(redirectTimer);
+        if (!response.ok) {
+          console.log('Token validation failed! Redirecting to signin...');
+          // Clear invalid tokens
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('isAuthenticated');
+          
+          setStatus('Redirecting to sign in...');
+          router.replace('/signin');
+          return;
+        }
+
+        const user = await response.json();
+        console.log('✓ Authentication validated!', user);
+        setStatus('Connecting to BioStream workspace...');
+        
+        // Force immediate redirect
+        const redirectTimer = setTimeout(() => {
+          console.log('Executing redirect to http://localhost:3001');
+          window.location.replace('http://localhost:3001');
+        }, 500);
+
+        return () => clearTimeout(redirectTimer);
+      } catch (error) {
+        console.error('Authentication validation error:', error);
+        // Clear tokens on error
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('isAuthenticated');
+        
+        setStatus('Redirecting to sign in...');
+        router.replace('/signin');
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateAuth();
   }, [router]);
 
   return (
@@ -52,7 +96,7 @@ export default function Workspace() {
           <p className="text-xs text-yellow-800 mb-2 font-semibold">Debug Information:</p>
           <p className="text-xs text-yellow-700 mb-1">Status: {status}</p>
           <p className="text-xs text-yellow-700 mb-1">
-            Authenticated: {typeof window !== 'undefined' && localStorage.getItem('isAuthenticated') === 'true' ? 'Yes ✓' : 'No ✗'}
+            Validating: {isValidating ? 'Yes...' : 'Complete'}
           </p>
           <p className="text-xs text-yellow-700">
             Target: http://localhost:3001

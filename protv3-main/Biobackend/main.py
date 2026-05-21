@@ -26,6 +26,7 @@ from apis.SwissModel import swissmodel_router
 from apis.TCoffee import tcoffee_router
 from apis.SIFT.sift_router import router as sift_router
 from apis.Uniprot.uniprot_router import router as uniprot_router
+from apis.auth.auth_router import router as auth_router
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ app.include_router(swissmodel_router)
 app.include_router(tcoffee_router)
 app.include_router(sift_router)
 app.include_router(uniprot_router)
+app.include_router(auth_router)
 
 @app.get("/", include_in_schema=False)
 async def root():
