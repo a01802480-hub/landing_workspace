@@ -13,7 +13,19 @@ router = APIRouter(
 )
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+_SECRET_ENV = os.getenv("JWT_SECRET_KEY", "")
+_DEFAULT_SECRET = "your-secret-key-change-in-production"
+
+if not _SECRET_ENV:
+    import warnings
+    warnings.warn(
+        "⚠️  JWT_SECRET_KEY is not set — using the DEFAULT (insecure) secret. "
+        "Set the JWT_SECRET_KEY environment variable in production. "
+        "Anyone who knows this default secret can forge valid JWTs.",
+        RuntimeWarning,
+    )
+
+SECRET_KEY = _SECRET_ENV if _SECRET_ENV else _DEFAULT_SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -184,23 +196,53 @@ async def login(login_data: UserLogin):
 
 @router.post("/refresh", response_model=dict)
 async def refresh_token(request: RefreshTokenRequest):
-    """Refresh access token using refresh token"""
-    # Verify refresh token
+    """Refresh access token using refresh token.
+
+    The refresh token is cryptographically verified (JWT signature + expiry)
+    AND checked against the server-side allow-list. Both checks must pass.
+    After use, the old refresh token is revoked and a new one is issued
+    (refresh token rotation) to limit the window for token replay attacks.
+    """
+    # 1. Cryptographically verify the JWT
+    try:
+        payload = decode_token(request.refresh_token)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 2. Check the server-side allow-list (defense against revoked tokens)
     user_id = refresh_tokens_db.get(request.refresh_token)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
+            detail="Refresh token has been revoked",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Generate new access token
-    access_token = create_access_token(data={"sub": user_id})
-    
+
+    # Verify the payload matches
+    if payload.get("sub") != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token payload mismatch",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 3. Revoke the old refresh token (rotation)
+    del refresh_tokens_db[request.refresh_token]
+
+    # 4. Issue new tokens
+    new_access_token = create_access_token(data={"sub": user_id})
+    new_refresh_token = create_refresh_token(data={"sub": user_id})
+    refresh_tokens_db[new_refresh_token] = user_id
+
     return {
-        "access_token": access_token,
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
-        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
 
 @router.get("/me", response_model=UserResponse)

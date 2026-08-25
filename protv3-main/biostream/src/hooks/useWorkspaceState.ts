@@ -1,6 +1,13 @@
 import { useState, useCallback, useMemo, useEffect, useReducer } from 'react'
 import { Workspace, AlignmentResult } from '../types'
 import { getMockWorkspaces } from '../utils/mockData'
+import {
+  fetchWorkspaces,
+  createWorkspace,
+  addFileToWorkspaceApi,
+  WorkspaceData,
+  WorkspaceFile,
+} from '../services/workspace'
 
 interface UIState {
   activeTab: 'sequence' | 'alignment' | 'worksheet' | 'detail' | 'alignment-view' | 'alignment-worksheet' | 'uniprot-services' | 'api-runner' | 'api-worksheet'
@@ -20,29 +27,40 @@ type UIAction =
 const uiReducer = (state: UIState, action: UIAction): UIState => {
   switch (action.type) {
     case 'SET_ACTIVE_TAB':
-      console.log('🔄 REDUCER: SET_ACTIVE_TAB from', state.activeTab, 'to', action.payload)
       return { ...state, activeTab: action.payload }
     case 'SET_SHOW_SETTINGS_SIDEBAR':
       return { ...state, showSettingsSidebar: action.payload }
     case 'SET_SHOW_PLUS_MENU':
       return { ...state, showPlusMenu: action.payload }
     case 'SET_SELECTED_DETAIL_FILE':
-      console.log('🔄 REDUCER: SET_SELECTED_DETAIL_FILE to', action.payload?.name || '(null)')
       return { ...state, selectedDetailFile: action.payload }
     case 'SET_SELECTED_ALIGNMENT_RESULT':
-      console.log('🔄 REDUCER: SET_SELECTED_ALIGNMENT_RESULT')
       return { ...state, selectedAlignmentResult: action.payload }
     default:
       return state
   }
 }
 
-export const useWorkspaceState = () => {
-  // -----------------------------------------------------------------
-  // 1. STATE MANAGEMENT
-  // -----------------------------------------------------------------
+function toWorkspace(d: WorkspaceData): Workspace {
+  return {
+    id: d.id,
+    name: d.name,
+    owner: d.owner,
+    description: d.description,
+    sequenceCount: d.sequenceCount,
+    files: (d.files || []).map((f: WorkspaceFile) => ({
+      id: f.id,
+      name: f.name,
+      type: f.type as 'protein' | 'dna',
+      sequence: f.sequence,
+      createdAt: new Date(f.createdAt),
+    })),
+    createdAt: new Date(d.createdAt),
+  }
+}
 
-  // NEW: Single UI state with reducer pattern - more robust than multiple useState calls
+export const useWorkspaceState = () => {
+  // UI reducer
   const [uiState, dispatch] = useReducer(uiReducer, {
     activeTab: 'sequence',
     showSettingsSidebar: true,
@@ -51,60 +69,49 @@ export const useWorkspaceState = () => {
     selectedAlignmentResult: null,
   })
 
-  // Extract from reducer state
   const { activeTab, showSettingsSidebar, showPlusMenu, selectedDetailFile, selectedAlignmentResult } = uiState
 
-  // Log when activeTab changes
-  useEffect(() => {
-    console.log('🎯 STATE CHANGED: activeTab is now:', activeTab)
-  }, [activeTab])
-
-  // Log when selectedDetailFile changes
-  useEffect(() => {
-    console.log('📁 STATE CHANGED: selectedDetailFile is now:', selectedDetailFile?.name || '(null)')
-  }, [selectedDetailFile])
-
-  // Log when selectedAlignmentResult changes
-  useEffect(() => {
-    console.log('📊 STATE CHANGED: selectedAlignmentResult is now:', selectedAlignmentResult ? 'Alignment Result' : '(null)')
-  }, [selectedAlignmentResult])
-
-  // Workspace/Project state (separate from UI state)
+  // Workspace state
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [workspaces, setWorkspaces] = useState<Workspace[]>(getMockWorkspaces())
   const [alignmentResult, setAlignmentResult] = useState<AlignmentResult | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // -----------------------------------------------------------------
-  // 2. EFFECTS (Side Effects)
-  // -----------------------------------------------------------------
+  // Fetch workspaces from backend on mount
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const data = await fetchWorkspaces()
+        if (!cancelled && data.length > 0) {
+          setWorkspaces(data.map(toWorkspace))
+        }
+      } catch (err) {
+        console.warn('Backend unavailable, using mock workspaces:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
-  // This auto-selects the first available workspace if none is currently selected.
-  // It runs whenever the 'workspaces' list or the 'selectedProjectId' changes.
+  // Auto-select first workspace
   useEffect(() => {
     if (!selectedProjectId && workspaces.length > 0) {
       setSelectedProjectId(workspaces[0].id)
     }
   }, [workspaces, selectedProjectId])
 
-  // -----------------------------------------------------------------
-  // 3. MEMOIZED VALUES
-  // -----------------------------------------------------------------
-
-  // Finds and returns the full workspace object matching the selected ID.
-  // 'useMemo' ensures this heavy array lookup only runs when the list of 
-  // workspaces changes or when a user selects a different ID.
+  // Memoized active project
   const activeProject = useMemo(() => {
     if (!selectedProjectId) return null
     return workspaces.find(w => w.id === selectedProjectId) || null
   }, [workspaces, selectedProjectId])
 
-  // -----------------------------------------------------------------
-  // 4. CALLBACKS (Action Handlers)
-  // -----------------------------------------------------------------
+  // --- Callbacks ---
 
-  // UI State dispatch callbacks using reducer
-  const switchTab = useCallback((tab: 'sequence' | 'alignment' | 'worksheet' | 'detail' | 'alignment-view' | 'alignment-worksheet' | 'uniprot-services' | 'api-runner' | 'api-worksheet') => {
-    console.log('🔄 switchTab called with:', tab)
+  const switchTab = useCallback((tab: typeof activeTab) => {
     dispatch({ type: 'SET_ACTIVE_TAB', payload: tab })
   }, [])
 
@@ -120,21 +127,16 @@ export const useWorkspaceState = () => {
     dispatch({ type: 'SET_SHOW_PLUS_MENU', payload: false })
   }, [])
 
-  // NEW: Set selected file for detail view AND switch to detail tab
   const openDetailView = useCallback((file: import('../types').BioFile | null) => {
-    console.log('👁️ openDetailView called with file:', file?.name || '(null)')
     if (file) {
       dispatch({ type: 'SET_SELECTED_DETAIL_FILE', payload: file })
-      console.log('   dispatching SET_ACTIVE_TAB to detail...')
       dispatch({ type: 'SET_ACTIVE_TAB', payload: 'detail' })
     } else {
       dispatch({ type: 'SET_SELECTED_DETAIL_FILE', payload: null })
     }
   }, [])
 
-  // NEW: Open alignment result viewer
   const openAlignmentView = useCallback((alignment: AlignmentResult | null) => {
-    console.log('📊 openAlignmentView called')
     if (alignment) {
       dispatch({ type: 'SET_SELECTED_ALIGNMENT_RESULT', payload: alignment })
       dispatch({ type: 'SET_ACTIVE_TAB', payload: 'alignment-view' })
@@ -143,11 +145,19 @@ export const useWorkspaceState = () => {
     }
   }, [])
 
-  // Rest of callbacks using traditional setState
-  const addFolder = useCallback((name: string) => {
+  const addFolder = useCallback(async (name: string) => {
+    // Try backend first
+    const created = await createWorkspace(name).catch(() => null)
+    if (created) {
+      const ws = toWorkspace(created)
+      setWorkspaces(prev => [ws, ...prev])
+      setSelectedProjectId(ws.id)
+      return
+    }
+    // Fallback: local-only
     const newFolder: Workspace = {
       id: Math.random().toString(36).substr(2, 9),
-      name: name,
+      name,
       owner: 'Santiago Arizpe Dueñas',
       description: 'Newly created folder',
       sequenceCount: 0,
@@ -155,53 +165,64 @@ export const useWorkspaceState = () => {
       createdAt: new Date(),
     }
     setWorkspaces(prev => [newFolder, ...prev])
-    setSelectedProjectId(newFolder.id) 
+    setSelectedProjectId(newFolder.id)
   }, [])
 
-  const addFileToWorkspace = useCallback((workspaceId: string, file: import('../types').BioFile) => {
-    console.log('➕ ADD FILE TO WORKSPACE:', { workspaceId, fileName: file.name, fileType: file.type, sequenceLength: file.sequence.length })
-    
-    setWorkspaces(prev => {
-      const updated = prev.map(w => {
+  const addFileToWorkspace = useCallback(async (workspaceId: string, file: import('../types').BioFile) => {
+    // Try backend first
+    addFileToWorkspaceApi(workspaceId, {
+      name: file.name,
+      type: file.type,
+      sequence: file.sequence,
+    }).then(backendFile => {
+      if (backendFile) {
+        setWorkspaces(prev =>
+          prev.map(w => {
+            if (w.id !== workspaceId) return w
+            const existingFiles = w.files ?? []
+            return {
+              ...w,
+              files: [...existingFiles, {
+                id: backendFile.id,
+                name: backendFile.name,
+                type: backendFile.type as 'protein' | 'dna',
+                sequence: backendFile.sequence,
+                createdAt: new Date(backendFile.createdAt),
+              }],
+              sequenceCount: (w.sequenceCount || 0) + 1,
+            }
+          })
+        )
+      }
+    }).catch(() => {})
+
+    // Also update local state immediately for responsiveness
+    setWorkspaces(prev =>
+      prev.map(w => {
         if (w.id !== workspaceId) return w
-        
         const existingFiles = w.files ?? []
-        const newFiles = [...existingFiles, file]
-        
-        console.log(`  ✅ Added file to workspace "${w.name}"`)
-        console.log(`  📊 Workspace now has ${newFiles.length} files`)
-        
         return {
           ...w,
-          files: newFiles,
+          files: [...existingFiles, file],
           sequenceCount: (w.sequenceCount || 0) + 1,
         }
       })
-      
-      console.log(`✅ WORKSPACE STATE UPDATED - Total workspaces: ${updated.length}`)
-      return updated
-    })
+    )
   }, [])
 
   const setLastAlignmentResult = useCallback((result: AlignmentResult | null) => {
-    console.log('📝 Setting alignment result:', result?.name || '(null)')
-    // CRITICAL FIX: Update the REDUCER state, not the separate useState
-    // This ensures the alignment result is passed to MainWorkspace and WorksheetTab
     dispatch({ type: 'SET_SELECTED_ALIGNMENT_RESULT', payload: result })
   }, [])
 
-  // -----------------------------------------------------------------
-  // 5. PUBLIC API
-  // -----------------------------------------------------------------
   return {
-    activeTab,           // From reducer state
-    switchTab,           // Function to change tabs
+    activeTab,
+    switchTab,
     workspaces,
     activeProject,
     addFolder,
-    showSettingsSidebar, // From reducer state
+    showSettingsSidebar,
     toggleSettingsSidebar,
-    showPlusMenu,        // From reducer state
+    showPlusMenu,
     togglePlusMenu,
     closePlusMenu,
     selectedProject: selectedProjectId,
@@ -209,9 +230,10 @@ export const useWorkspaceState = () => {
     addFileToWorkspace,
     alignmentResult,
     setLastAlignmentResult,
-    selectedDetailFile,  // From reducer state
+    selectedDetailFile,
     openDetailView,
-    selectedAlignmentResult, // From reducer state
-    openAlignmentView,  // Function to open alignment viewer
+    selectedAlignmentResult,
+    openAlignmentView,
+    loading,
   }
 }

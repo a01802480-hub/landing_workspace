@@ -108,6 +108,8 @@ export default function NewAnalysisPage({ onBack, onSequencesReady }: NewAnalysi
           <button
             onClick={onBack}
             className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Go back"
+            aria-label="Go back"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
@@ -226,6 +228,8 @@ export default function NewAnalysisPage({ onBack, onSequencesReady }: NewAnalysi
                       <button
                         onClick={() => removeFile(index)}
                         className="p-1 hover:bg-gray-200 rounded transition-colors"
+                        title="Remove file"
+                        aria-label="Remove file"
                       >
                         <X className="w-4 h-4 text-gray-500" />
                       </button>

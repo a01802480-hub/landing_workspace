@@ -17,7 +17,7 @@ function SequenceViewerTab({ project, onUploadSequences, openDetailView }: Props
   }
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300">
+    <div className="flex flex-col min-h-0 flex-1 animate-in fade-in duration-300">
       <div className="border-b border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-[10px] font-bold uppercase">
@@ -94,7 +94,7 @@ function SequenceViewerTab({ project, onUploadSequences, openDetailView }: Props
       </div>
 
       <div className="border-t border-gray-200 bg-gray-50 p-4 text-[10px] text-slate-400 font-mono text-center uppercase tracking-widest">
-        Owner: {project.owner} | Created: {project.createdAt.toLocaleDateString()}
+        Owner: {project.owner} | Created: {project.createdAt instanceof Date ? project.createdAt.toLocaleDateString() : new Date(project.createdAt).toLocaleDateString()}
       </div>
     </div>
   )

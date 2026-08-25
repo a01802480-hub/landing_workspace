@@ -51,22 +51,37 @@ export default function Workspace() {
         const user = await response.json();
         console.log('✓ Authentication validated!', user);
         setStatus('Connecting to BioStream workspace...');
-        
-        // Force immediate redirect
+
+        // Store user data in localStorage before redirect (Vite SPA origin is different)
+        localStorage.setItem('user', JSON.stringify(user));
+
+        // Pass access token to Vite SPA via URL parameter (different origin = different localStorage)
+        const targetUrl = `http://localhost:3001?token=${encodeURIComponent(accessToken)}`;
+        console.log('Executing redirect to', targetUrl);
+
         const redirectTimer = setTimeout(() => {
-          console.log('Executing redirect to http://localhost:3001');
-          window.location.replace('http://localhost:3001');
+          window.location.replace(targetUrl);
         }, 500);
 
         return () => clearTimeout(redirectTimer);
       } catch (error) {
+        // If backend is unreachable (network error), still allow access to workspace
+        // The workspace has local fallbacks and mock data for offline use
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          console.warn('⚠️ Backend unreachable during auth check — proceeding to workspace anyway');
+          setStatus('Backend offline — entering workspace with local data...');
+          const targetUrl = `http://localhost:3001?token=${encodeURIComponent(accessToken)}`;
+          setTimeout(() => window.location.replace(targetUrl), 500);
+          return;
+        }
+
         console.error('Authentication validation error:', error);
-        // Clear tokens on error
+        // Clear tokens on non-network errors
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         localStorage.removeItem('isAuthenticated');
-        
+
         setStatus('Redirecting to sign in...');
         router.replace('/signin');
       } finally {
@@ -106,14 +121,15 @@ export default function Workspace() {
         {/* Manual redirect button */}
         <div className="mt-6 bg-white/80 backdrop-blur rounded-lg p-4 shadow-sm border border-gray-200">
           <p className="text-sm text-gray-600 mb-3">If automatic redirect doesn't work:</p>
-          <a 
-            href="http://localhost:3001"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => {
+              const t = localStorage.getItem('access_token');
+              window.open(`http://localhost:3001${t ? `?token=${encodeURIComponent(t)}` : ''}`, '_blank', 'noopener');
+            }}
             className="inline-block px-6 py-3 bg-[#5B50D6] text-white rounded-lg hover:bg-[#4a42b8] transition-all font-medium shadow-md hover:shadow-lg"
           >
             Open Workspace Manually →
-          </a>
+          </button>
         </div>
         
         {/* Retry button */}

@@ -32,6 +32,26 @@ import { ReactomeClient } from './reactome.ts';
 // Variant Prediction API
 import { SIFTClient } from './sift.ts';
 
+// === NEW Phase 4 APIs (14 services) ===
+// Pathway
+import { KEGGClient } from './kegg.ts';
+import { STRINGClient } from './string.ts';
+// Chemical
+import { ChEMBLClient } from './chembl.ts';
+import { PubChemClient } from './pubchem.ts';
+import { DrugBankClient } from './drugbank.ts';
+// Genomics
+import { ENAClient } from './ena.ts';
+import { GWASCatalogClient } from './gwas.ts';
+import { ExpressionAtlasClient } from './expressionAtlas.ts';
+import { ClinVarClient } from './clinvar.ts';
+import { gnomADClient } from './gnomad.ts';
+// Target, Literature, Interactions, Proteomics
+import { OpenTargetsClient } from './openTargets.ts';
+import { EuropePMCClient } from './europePMC.ts';
+import { IntActClient } from './intact.ts';
+import { PRIDEClient } from './pride.ts';
+
 export {
   // Alignment/Structure
   ClustalOmegaClient,
@@ -58,7 +78,11 @@ export {
   GeneOntologyClient,
   ReactomeClient,
   // Variant Prediction
-  SIFTClient
+  SIFTClient,
+  // === Phase 4 NEW APIs ===
+  KEGGClient, STRINGClient, ChEMBLClient, PubChemClient, DrugBankClient,
+  ENAClient, GWASCatalogClient, ExpressionAtlasClient, ClinVarClient, gnomADClient,
+  OpenTargetsClient, EuropePMCClient, IntActClient, PRIDEClient,
 };
 
 export interface APIRegistry {
@@ -104,11 +128,40 @@ export const ALL_APIS: APIRegistry[] = [
 
   // VARIANT PREDICTION (1)
   { name: 'SIFT', category: 'variant', subcategory: 'effect', client: SIFTClient, description: 'Sorting Intolerant From Tolerant - variant effect prediction', requiresSequence: true, supportsJobQueue: true },
+
+  // === PHASE 4: NEW APIs (14) ===
+  // PATHWAY (2)
+  { name: 'KEGG', category: 'pathway', subcategory: 'metabolism', client: KEGGClient, description: 'Kyoto Encyclopedia of Genes and Genomes — pathways, drugs, diseases', requiresSequence: false, supportsJobQueue: false },
+  { name: 'STRING', category: 'pathway', subcategory: 'interaction', client: STRINGClient, description: 'Protein-protein interaction networks and functional enrichment', requiresSequence: false, supportsJobQueue: false },
+
+  // CHEMICAL (3)
+  { name: 'ChEMBL', category: 'chemical', subcategory: 'bioactivity', client: ChEMBLClient, description: 'Bioactivity data for drug discovery — compounds, targets, assays', requiresSequence: false, supportsJobQueue: false },
+  { name: 'PubChem', category: 'chemical', subcategory: 'compound', client: PubChemClient, description: 'Chemical compounds, substances, bioassays and patents', requiresSequence: false, supportsJobQueue: false },
+  { name: 'DrugBank', category: 'chemical', subcategory: 'drug', client: DrugBankClient, description: 'Drug data — mechanisms, targets, pharmacokinetics', requiresSequence: false, supportsJobQueue: false },
+
+  // GENOMICS (5)
+  { name: 'ENA', category: 'genomics', subcategory: 'nucleotide', client: ENAClient, description: 'European Nucleotide Archive — raw sequencing data repository', requiresSequence: false, supportsJobQueue: false },
+  { name: 'GWAS Catalog', category: 'genomics', subcategory: 'association', client: GWASCatalogClient, description: 'Genome-wide association studies — SNP-trait associations', requiresSequence: false, supportsJobQueue: false },
+  { name: 'gnomAD', category: 'genomics', subcategory: 'population', client: gnomADClient, description: 'Genome Aggregation Database — population variant frequencies', requiresSequence: false, supportsJobQueue: false },
+  { name: 'ClinVar', category: 'genomics', subcategory: 'clinical', client: ClinVarClient, description: 'Clinical variant interpretation — germline and somatic classifications', requiresSequence: false, supportsJobQueue: false },
+  { name: 'Expression Atlas', category: 'genomics', subcategory: 'expression', client: ExpressionAtlasClient, description: 'Gene and protein expression across species and conditions', requiresSequence: false, supportsJobQueue: false },
+
+  // LITERATURE (1)
+  { name: 'Europe PMC', category: 'literature', subcategory: 'articles', client: EuropePMCClient, description: 'Biomedical literature — 42M+ abstracts, text-mined annotations', requiresSequence: false, supportsJobQueue: false },
+
+  // INTERACTION (1)
+  { name: 'IntAct', category: 'interaction', subcategory: 'molecular', client: IntActClient, description: 'Molecular interaction database — curated protein interactions', requiresSequence: false, supportsJobQueue: false },
+
+  // TARGET (1)
+  { name: 'Open Targets', category: 'target', subcategory: 'drug-discovery', client: OpenTargetsClient, description: 'Target-disease associations for drug target prioritization', requiresSequence: false, supportsJobQueue: false },
+
+  // PROTEOMICS (1)
+  { name: 'PRIDE', category: 'proteomics', subcategory: 'mass-spec', client: PRIDEClient, description: 'PRIDE / ProteomeXchange — mass spectrometry proteomics data', requiresSequence: false, supportsJobQueue: false },
 ];
 
 export async function discoverAllAPIs(): Promise<any[]> {
   const discoveries = await Promise.allSettled(
-    ALL_APIS.map(api => api.client.discover().catch(err => ({ error: err.message })))
+    ALL_APIS.map(api => api.client.discover().catch((err: Error) => ({ error: err.message })))
   );
   return discoveries.map((result, idx) => ({
     api: ALL_APIS[idx].name,
@@ -127,4 +180,129 @@ export function getAllAPIs(): APIRegistry[] {
 
 export function getAPIByName(name: string): APIRegistry | undefined {
   return ALL_APIS.find(api => api.name === name);
+}
+
+// ─── API Simulation Layer ──────────────────────────────────────────────────
+// Provides realistic mock responses for all bioinformatics APIs so the
+// workspace tools work fully offline without the backend.
+
+const AMINO_ACIDS = 'ACDEFGHIKLMNPQRSTVWY'
+
+function randomAa(length: number): string {
+  let s = ''
+  for (let i = 0; i < length; i++) s += AMINO_ACIDS[Math.floor(Math.random() * AMINO_ACIDS.length)]
+  return s
+}
+
+function randomId(prefix: string): string {
+  return `${prefix}_${Math.random().toString(36).substr(2, 8).toUpperCase()}`
+}
+
+const SIMULATED_RESPONSES: Record<string, (input: Record<string, any>) => Record<string, any>> = {
+  // ── Alignment ──
+  'Clustal Omega': (i) => ({
+    status: 'success', job_id: randomId('CLUSTALO'),
+    message: `CLUSTAL O(1.2.4) multiple sequence alignment\n\n\nseq1      ${i.sequence?.slice(0, 40) || randomAa(40)}--------------------\nseq2      --------------------${i.sequence2?.slice(0, 40) || randomAa(40)}`,
+    alignment_length: 80, identity: 45.2, similarity: 62.8,
+  }),
+  'T-Coffee': (i) => ({ status: 'success', job_id: randomId('TCOFFEE'), message: 'T-COFFEE alignment complete', identity: 48.5, score: 85.3 }),
+  'MAFFT': (i) => ({ status: 'success', job_id: randomId('MAFFT'), message: 'MAFFT alignment complete', identity: 50.1, algorithm: 'FFT-NS-2' }),
+  'MUSCLE': (i) => ({ status: 'success', job_id: randomId('MUSCLE'), message: 'MUSCLE alignment complete', identity: 47.8 }),
+  'Jalview': (i) => ({ status: 'success', job_id: randomId('JALVIEW'), message: 'Alignment visualization data ready', features: ['conservation', 'consensus', 'quality'] }),
+
+  // ── Structure ──
+  'AlphaFold DB': (input) => ({
+    status: 'success', uniprot_id: input.query || 'P00519',
+    pdb_url: 'https://alphafold.ebi.ac.uk/files/AF-P00519-F1-model_v4.pdb',
+    confidence: 92.5, regions: [{ start: 1, end: 50, pLDDT: 95 }, { start: 51, end: 120, pLDDT: 88 }],
+  }),
+  'SWISS-MODEL': (i) => ({ status: 'success', templates: [{ id: '1abc', identity: 78.5, coverage: 0.95 }], model_url: 'https://swissmodel.expasy.org/repository/uniprot/P00519' }),
+  'PDBe': (i) => ({ status: 'success', results: [{ pdb_id: i.query || '1ABC', title: 'Crystal structure of sample protein', resolution: 2.1, method: 'X-ray diffraction' }] }),
+
+  // ── Search ──
+  'NCBI BLAST': (i) => ({
+    status: 'success', job_id: randomId('BLAST'),
+    hits: [
+      { accession: 'NP_001234.1', title: 'Sample protein [Homo sapiens]', identity: 98.5, e_value: 1e-45, length: 450 },
+      { accession: 'XP_002345.2', title: 'Similar protein [Mus musculus]', identity: 87.2, e_value: 1e-32, length: 445 },
+      { accession: 'XP_003456.1', title: 'Related protein [Danio rerio]', identity: 72.1, e_value: 1e-18, length: 460 },
+    ],
+  }),
+  'NCBI E-utilities': (i) => ({
+    status: 'success', results: [{
+      uid: '12345', title: `${i.query || 'Gene'} - Homo sapiens`,
+      summary: 'This gene encodes a protein involved in cellular processes.',
+      organism: 'Homo sapiens', gene_id: '12345',
+    }],
+  }),
+  'HMMER': (i) => ({ status: 'success', job_id: randomId('HMMER'), hits: [{ name: 'PF00001', description: 'Sample domain family', score: 145.2, e_value: 1e-38 }] }),
+  'Ensembl Sequence': (i) => ({ status: 'success', sequence: randomAa(300), id: 'ENSG00000123456', species: 'homo_sapiens' }),
+  'Ensembl Search': (i) => ({ status: 'success', results: [{ id: 'ENSG00000123456', name: i.query || 'BRCA1', species: 'Homo sapiens', location: '17:41,196,312-41,277,500' }] }),
+
+  // ── Genomics ──
+  'Ensembl Info': () => ({ status: 'success', species: 'homo_sapiens', assembly: 'GRCh38.p14', annotation: 'Ensembl 110' }),
+  'Ensembl Genomics': (i) => ({ status: 'success', region: i.query || '17:41196312-41277500', genes: 28, variants: 1523 }),
+  'Ensembl Evolution': (i) => ({ status: 'success', gene_id: i.query || 'ENSG00000123456', homologues: 12, gene_tree: 'Available' }),
+  'UniProt': (i) => ({
+    status: 'success', results: [{
+      accession: i.query || 'P00519', protein_name: 'Sample protein', organism: 'Homo sapiens',
+      gene: 'SAMPLE', function: 'Catalyzes important biochemical reactions [SIMULATED]',
+      sequence: randomAa(400), length: 400, ec_number: '2.7.11.1',
+      go_terms: ['GO:0004674', 'GO:0005524', 'GO:0006468'],
+    }],
+  }),
+  'ENA': (i) => ({ status: 'success', accession: i.query || 'PRJEB12345', format: 'FASTQ', total_reads: 45000000, platform: 'ILLUMINA' }),
+  'GWAS Catalog': (i) => ({ status: 'success', studies: [{ trait: i.query || 'Type 2 diabetes', snp_count: 452, associations: 128 }] }),
+  'gnomAD': (i) => ({ status: 'success', variant_id: i.query || 'rs334', allele_frequency: 0.023, populations: { afr: 0.08, eur: 0.005, eas: 0.001 } }),
+  'ClinVar': (i) => ({ status: 'success', variations: [{ gene: i.query || 'CFTR', clinical_significance: 'Pathogenic', review_status: 'reviewed by expert panel' }] }),
+  'Expression Atlas': (i) => ({ status: 'success', gene: i.query || 'TP53', experiments: 128, top_tissues: ['Liver', 'Brain', 'Lung'], expression_levels: { Liver: 'High', Brain: 'Medium', Lung: 'Low' } }),
+
+  // ── Annotation ──
+  'InterPro': (i) => ({ status: 'success', matches: [{ domain: 'IPR000719', name: 'Protein kinase domain', start: 50, end: 300, score: 98.5 }] }),
+  'Gene Ontology': (i) => ({ status: 'success', terms: [{ id: 'GO:0004674', name: 'protein serine/threonine kinase activity', aspect: 'molecular_function' }] }),
+  'Reactome': (i) => ({ status: 'success', pathways: [{ id: 'R-HSA-12345', name: 'Signal Transduction', entities: 245 }] }),
+
+  // ── Variant ──
+  'SIFT': (i) => ({
+    status: 'success', predictions: [{
+      position: 123, ref_aa: 'A', var_aa: 'V', sift_score: 0.03,
+      prediction: 'DELETERIOUS', confidence: 'High',
+      blosum62_score: -2,
+    }],
+  }),
+
+  // ── Pathway ──
+  'KEGG': (i) => ({ status: 'success', pathways: [{ id: 'hsa00010', name: 'Glycolysis / Gluconeogenesis', genes: 68 }, { id: 'hsa01200', name: 'Carbon metabolism', genes: 114 }] }),
+  'STRING': (i) => ({ status: 'success', network: { nodes: 15, edges: 42, avg_confidence: 0.78, top_interactors: ['TP53', 'BRCA1', 'EGFR', 'MYC'] } }),
+
+  // ── Chemical ──
+  'ChEMBL': (i) => ({ status: 'success', compounds: [{ id: 'CHEMBL12', name: i.query || 'Aspirin', molecular_weight: 180.16, bioactivities: 1245, targets: 48 }] }),
+  'PubChem': (i) => ({ status: 'success', compounds: [{ cid: 2244, name: i.query || 'Aspirin', formula: 'C9H8O4', molecular_weight: 180.16, iupac: '2-acetyloxybenzoic acid' }] }),
+  'DrugBank': (i) => ({ status: 'success', drugs: [{ id: 'DB00001', name: i.query || 'Lepirudin', category: 'Anticoagulant', targets: ['Thrombin'], half_life: '1.3 hours' }] }),
+
+  // ── Literature ──
+  'Europe PMC': (i) => ({ status: 'success', results: [{ title: `Recent advances in ${i.query || 'bioinformatics'}`, authors: 'Smith J et al.', journal: 'Nature', year: 2025, pmid: '12345678' }] }),
+
+  // ── Interaction ──
+  'IntAct': (i) => ({ status: 'success', interactions: [{ protein_a: i.query || 'TP53', protein_b: 'MDM2', type: 'physical association', confidence: 0.95 }] }),
+
+  // ── Target ──
+  'Open Targets': (i) => ({ status: 'success', targets: [{ gene: i.query || 'EGFR', associated_diseases: 42, top_disease: 'Lung cancer', score: 0.89 }] }),
+
+  // ── Proteomics ──
+  'PRIDE': (i) => ({ status: 'success', datasets: [{ accession: i.query || 'PXD000001', title: 'Proteomic analysis of sample tissue', species: 'Homo sapiens', proteomics_type: 'Shotgun' }] }),
+};
+
+/** Simulate an API call with realistic mock data — works fully offline. */
+export function simulateAPICall(apiName: string, input: Record<string, any>): Record<string, any> {
+  const sim = SIMULATED_RESPONSES[apiName]
+  if (sim) {
+    return { ...sim(input), simulated: true, timestamp: new Date().toISOString() }
+  }
+  return {
+    status: 'success',
+    simulated: true,
+    message: `Simulated response for ${apiName}. Input: ${JSON.stringify(input).slice(0, 200)}`,
+    timestamp: new Date().toISOString(),
+  }
 }

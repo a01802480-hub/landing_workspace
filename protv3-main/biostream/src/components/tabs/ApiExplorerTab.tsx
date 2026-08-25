@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Book, ChevronDown, Play, Server, FileJson, PlusSquare } from 'lucide-react';
+import { Book, ChevronDown, Play, Server, FileJson, PlusSquare, Info } from 'lucide-react';
 import axios from 'axios';
 
 // Get backend URL from environment variable or default to localhost
@@ -11,6 +11,8 @@ interface ApiEndpoint {
   path: string;
   method: string;
   description: string;
+  query_hint?: string;         // Hint for what to put in the query/path params
+  example_params?: string;     // Example parameter value
 }
 
 interface ApiInfo {
@@ -24,7 +26,8 @@ interface ApiInfo {
   description: string;
   discovered_at: string;
   status: string;
-  endpoints?: ApiEndpoint[]; // Will be fetched on demand
+  query_hint?: string;         // General hint about what queries this API accepts
+  endpoints?: ApiEndpoint[];   // Will be fetched on demand
 }
 
 type CategorizedApis = Record<string, ApiInfo[]>;
@@ -34,6 +37,53 @@ interface ApiExplorerTabProps {
 }
 
 // --- HELPER COMPONENTS ---
+
+// --- PARAM HINT MAPPING ---
+// Human-readable hints for common path parameter names
+const PARAM_HINTS: Record<string, string> = {
+  uniprot_id: 'e.g. P00519 (UniProt accession)',
+  accession: 'e.g. P00519 (accession number)',
+  id: 'e.g. P00519 or CHEMBL12',
+  ids: 'e.g. P00519,P68871 (comma-separated)',
+  db: 'e.g. pathway, module, disease, drug, compound, genes',
+  db1: 'e.g. pathway (source DB)',
+  db2: 'e.g. disease (target DB)',
+  query: 'e.g. insulin receptor (search term)',
+  gene: 'e.g. BRCA2 (gene symbol)',
+  protein: 'e.g. P53 (protein name or ID)',
+  molecule: 'e.g. CHEMBL12 (molecule ID)',
+  target: 'e.g. EGFR (target name or ID)',
+  disease: 'e.g. diabetes (disease name)',
+  specie: 'e.g. human, mouse (species name)',
+  organism: 'e.g. 9606 (human NCBI taxon ID)',
+  variant: 'e.g. rs334 (dbSNP ID)',
+  study: 'e.g. GCST000001 (GWAS study ID)',
+  term: 'e.g. apoptosis (ontology term)',
+  sequence: 'e.g. MKFLILFNILV... (protein/DNA sequence)',
+  email: 'e.g. user@example.com',
+  format: 'e.g. json, xml, fasta',
+};
+
+function getParamHint(paramName: string, endpoint?: ApiEndpoint): string {
+  // First check if the endpoint has a query_hint
+  if (endpoint?.query_hint) {
+    // If it's a generic hint that applies to all params
+    const lowerHint = endpoint.query_hint.toLowerCase();
+    if (lowerHint.includes(paramName.toLowerCase())) {
+      // Extract specific hint from the query_hint string
+      const match = endpoint.query_hint.match(new RegExp(`${paramName}\\s*[:=]\\s*([^,;]+)`, 'i'));
+      if (match) return match[1].trim();
+    }
+    return endpoint.query_hint;
+  }
+  // Then check the common hints
+  for (const [key, hint] of Object.entries(PARAM_HINTS)) {
+    if (paramName.toLowerCase().includes(key.toLowerCase())) {
+      return hint;
+    }
+  }
+  return `Enter ${paramName.replace(/_/g, ' ')}`;
+}
 
 const ApiForm = ({ endpoint, onExecute, loading }: { endpoint: ApiEndpoint, onExecute: (params: any, body: any) => void, loading: boolean }) => {
   const [params, setParams] = useState<Record<string, string>>({});
@@ -52,22 +102,34 @@ const ApiForm = ({ endpoint, onExecute, loading }: { endpoint: ApiEndpoint, onEx
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h4 className="font-bold text-slate-700">{endpoint.method} {endpoint.path}</h4>
-      <p className="text-xs text-slate-500">{endpoint.description}</p>
-      
+      <h4 className="font-bold text-slate-700">
+        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mr-2 ${endpoint.method === 'GET' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{endpoint.method}</span>
+        <code className="text-xs font-mono">{endpoint.path}</code>
+      </h4>
+      <p className="text-xs text-slate-500 leading-relaxed">{endpoint.description}</p>
+
+      {endpoint.query_hint && (
+        <div className="flex items-start gap-1.5 px-2.5 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+          <Info size={13} className="text-indigo-400 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-indigo-600 leading-relaxed">{endpoint.query_hint}</p>
+        </div>
+      )}
+
       {pathParams.length > 0 && (
         <div>
           <label className="text-[10px] font-bold uppercase text-slate-400">Path Parameters</label>
           {pathParams.map(param => (
-            <input
-              key={param}
-              type="text"
-              placeholder={param}
-              value={params[param] || ''}
-              onChange={(e) => handleParamChange(param, e.target.value)}
-              className="mt-1 w-full p-2 border border-slate-200 rounded-lg text-xs"
-              required
-            />
+            <div key={param} className="mt-1">
+              <input
+                type="text"
+                placeholder={getParamHint(param, endpoint)}
+                value={params[param] || ''}
+                onChange={(e) => handleParamChange(param, e.target.value)}
+                className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 outline-none transition-colors"
+                required
+              />
+              <p className="text-[9px] text-slate-400 mt-0.5 ml-0.5">{param} — {getParamHint(param, endpoint)}</p>
+            </div>
           ))}
         </div>
       )}
@@ -205,16 +267,33 @@ function ApiExplorerTab({ onAddResultToWorksheet }: ApiExplorerTabProps) {
               <ul className="space-y-1">
                 {apis.map(api => (
                   <li key={api.name}>
-                    <button onClick={() => handleSelectApi(api)} className={`w-full text-left p-2 rounded-lg text-xs font-semibold ${selectedApi?.name === api.name ? 'bg-indigo-100 text-indigo-800' : 'hover:bg-slate-100'}`}>
-                      {api.name}
+                    <button
+                      onClick={() => handleSelectApi(api)}
+                      className={`w-full text-left p-2 rounded-lg transition-colors ${selectedApi?.name === api.name ? 'bg-indigo-100 text-indigo-800' : 'hover:bg-slate-100'}`}
+                    >
+                      <div className="text-xs font-semibold">{api.name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">
+                        {api.description || 'No description available'}
+                      </div>
+                      {api.query_hint && (
+                        <div className="text-[9px] text-indigo-500 mt-0.5 italic">
+                          Query: {api.query_hint}
+                        </div>
+                      )}
                     </button>
                     {selectedApi?.name === api.name && api.endpoints && (
                       <ul className="pl-4 mt-1 space-y-1 border-l-2 border-indigo-200">
                         {api.endpoints.map(ep => (
                           <li key={ep.path + ep.method}>
-                            <button onClick={() => setSelectedEndpoint(ep)} className={`w-full text-left p-1.5 rounded-md text-xs ${selectedEndpoint === ep ? 'bg-indigo-200' : 'hover:bg-slate-100'}`}>
-                              <span className={`font-bold w-12 inline-block ${ep.method === 'GET' ? 'text-green-600' : 'text-blue-600'}`}>{ep.method}</span>
-                              <span className="font-mono">{ep.path}</span>
+                            <button
+                              onClick={() => setSelectedEndpoint(ep)}
+                              className={`w-full text-left p-1.5 rounded-md text-xs transition-colors ${selectedEndpoint === ep ? 'bg-indigo-200' : 'hover:bg-slate-100'}`}
+                            >
+                              <span className={`font-bold w-10 inline-block text-[10px] ${ep.method === 'GET' ? 'text-green-600' : 'text-blue-600'}`}>{ep.method}</span>
+                              <span className="font-mono text-[10px]">{ep.path}</span>
+                              {ep.description && (
+                                <span className="block text-[9px] text-slate-400 mt-0.5 ml-10">{ep.description}</span>
+                              )}
                             </button>
                           </li>
                         ))}

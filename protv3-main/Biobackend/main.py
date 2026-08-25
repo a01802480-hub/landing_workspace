@@ -27,6 +27,24 @@ from apis.TCoffee import tcoffee_router
 from apis.SIFT.sift_router import router as sift_router
 from apis.Uniprot.uniprot_router import router as uniprot_router
 from apis.auth.auth_router import router as auth_router
+from apis.workspaces.workspace_router import router as workspace_router
+
+# --- NEW Phase 4 API imports ---
+from apis.KEGG.kegg_router import router as kegg_router
+from apis.STRING.string_router import router as string_router
+from apis.ChEMBL.chembl_router import router as chembl_router
+from apis.PubChem.pubchem_router import router as pubchem_router
+from apis.ENA.ena_router import router as ena_router
+from apis.GWASCatalog.gwas_router import router as gwas_router
+from apis.OpenTargets.open_targets_router import router as open_targets_router
+from apis.EuropePMC.europe_pmc_router import router as europe_pmc_router
+from apis.ClinVar.clinvar_router import router as clinvar_router
+from apis.IntAct.intact_router import router as intact_router
+from apis.DrugBank.drugbank_router import router as drugbank_router
+from apis.ExpressionAtlas.expression_atlas_router import router as expression_atlas_router
+from apis.PRIDE.pride_router import router as pride_router
+from apis.gnomAD.gnomad_router import router as gnomad_router
+from apis.calendar.calendar_router import router as calendar_router
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +90,298 @@ app.include_router(tcoffee_router)
 app.include_router(sift_router)
 app.include_router(uniprot_router)
 app.include_router(auth_router)
+app.include_router(workspace_router)
+
+# --- NEW Phase 4 router registrations ---
+app.include_router(kegg_router)
+app.include_router(string_router)
+app.include_router(chembl_router)
+app.include_router(pubchem_router)
+app.include_router(ena_router)
+app.include_router(gwas_router)
+app.include_router(open_targets_router)
+app.include_router(europe_pmc_router)
+app.include_router(clinvar_router)
+app.include_router(intact_router)
+app.include_router(drugbank_router)
+app.include_router(expression_atlas_router)
+app.include_router(pride_router)
+app.include_router(gnomad_router)
+app.include_router(calendar_router)
 
 @app.get("/", include_in_schema=False)
 async def root():
     return {"message": "Welcome to the Bioinformatics API Hub!"}
+
+
+# --- API Discovery Registry ---
+# Maps each API to its metadata: description, category, and query hints
+API_REGISTRY: Dict[str, Dict[str, Any]] = {
+    # --- Alignment ---
+    "Clustal Omega": {
+        "folder_name": "Clustalo", "prefix": "/clustalo", "category": "alignment",
+        "description": "Rapid multiple sequence alignment (MSA) for proteins and DNA using progressive alignment.",
+        "query_hint": "Paste 2+ FASTA sequences or upload a FASTA file",
+        "source": "https://www.ebi.ac.uk/Tools/msa/clustalo/",
+    },
+    "T-Coffee": {
+        "folder_name": "TCoffee", "prefix": "/tcoffee", "category": "alignment",
+        "description": "Combined phylogenetic and structural multiple sequence alignment with high accuracy.",
+        "query_hint": "Paste 2+ FASTA sequences for accurate structural alignment",
+        "source": "https://www.ebi.ac.uk/Tools/msa/tcoffee/",
+    },
+    "MAFFT": {
+        "folder_name": "MAFFT", "prefix": "/mafft", "category": "alignment",
+        "description": "Fast multiple sequence alignment suitable for large datasets.",
+        "query_hint": "Paste 2+ FASTA sequences or large sequence sets",
+        "source": "https://www.ebi.ac.uk/Tools/msa/mafft/",
+    },
+    "MUSCLE": {
+        "folder_name": "Muscle", "prefix": "/muscle", "category": "alignment",
+        "description": "Multiple Sequence Comparison by Log-Expectation — fast and accurate MSA.",
+        "query_hint": "Paste 2+ protein or DNA FASTA sequences",
+        "source": "https://www.ebi.ac.uk/Tools/msa/muscle/",
+    },
+    "Jalview": {
+        "folder_name": "Jalview", "prefix": "/jalview", "category": "alignment",
+        "description": "Visualize, edit, and analyze multiple sequence alignments with rich annotation.",
+        "query_hint": "Upload alignment file or paste aligned sequences",
+        "source": "https://www.jalview.org/",
+    },
+
+    # --- Structure ---
+    "AlphaFold DB": {
+        "folder_name": "AlphaFold", "prefix": "/alphafold", "category": "structure",
+        "description": "AI-predicted 3D protein structure database from DeepMind. Look up structures by UniProt ID.",
+        "query_hint": "Enter UniProt accession (e.g. P00519) to get predicted 3D structure",
+        "source": "https://alphafold.ebi.ac.uk/",
+    },
+    "SWISS-MODEL": {
+        "folder_name": "SwissModel", "prefix": "/swissmodel", "category": "structure",
+        "description": "Automated protein structure homology modeling — build 3D models from your sequence.",
+        "query_hint": "Paste a protein FASTA sequence to generate a homology model",
+        "source": "https://swissmodel.expasy.org/",
+    },
+    "PDBe": {
+        "folder_name": "PDBe", "prefix": "/pdbe", "category": "structure",
+        "description": "Protein Data Bank in Europe — search and retrieve experimentally determined 3D structures.",
+        "query_hint": "Enter PDB ID (e.g. 1abc), UniProt accession, or keyword search",
+        "source": "https://www.ebi.ac.uk/pdbe/",
+    },
+
+    # --- Search ---
+    "NCBI BLAST": {
+        "folder_name": "BLAST", "prefix": "/blast", "category": "search",
+        "description": "Basic Local Alignment Search Tool — find similar sequences in large databases.",
+        "query_hint": "Paste a DNA or protein sequence to search against NCBI databases",
+        "source": "https://blast.ncbi.nlm.nih.gov/",
+    },
+    "NCBI E-utilities": {
+        "folder_name": "NCBI", "prefix": "/ncbi", "category": "search",
+        "description": "Search and retrieve records from all NCBI databases (PubMed, Gene, Protein, etc.).",
+        "query_hint": "Enter gene name, accession, or search term to query NCBI databases",
+        "source": "https://www.ncbi.nlm.nih.gov/",
+    },
+    "HMMER": {
+        "folder_name": "HMMER", "prefix": "/hmmer", "category": "search",
+        "description": "Hidden Markov Model-based sequence searching — more sensitive than BLAST for distant homologs.",
+        "query_hint": "Paste a protein sequence to search against profile HMM databases",
+        "source": "https://www.ebi.ac.uk/Tools/hmmer/",
+    },
+    "Ensembl Sequence": {
+        "folder_name": "Ensembl", "prefix": "/ensembl/sequence", "category": "search",
+        "description": "Query and retrieve genomic sequences from the Ensembl genome browser.",
+        "query_hint": "Enter gene symbol, Ensembl ID, or genomic coordinates",
+        "source": "https://rest.ensembl.org/",
+    },
+    "Ensembl Search": {
+        "folder_name": "Ensembl", "prefix": "/ensembl/search", "category": "search",
+        "description": "Search the Ensembl database for genes, transcripts, and regulatory features.",
+        "query_hint": "Enter gene name, disease, or phenotype keyword",
+        "source": "https://rest.ensembl.org/",
+    },
+
+    # --- Genomics ---
+    "Ensembl Info": {
+        "folder_name": "Ensembl", "prefix": "/ensembl/info", "category": "genomics",
+        "description": "Retrieve detailed genomic metadata — assembly info, species list, data types.",
+        "query_hint": "Enter species name or taxonomy ID for genome information",
+        "source": "https://rest.ensembl.org/",
+    },
+    "Ensembl Genomics": {
+        "folder_name": "Ensembl", "prefix": "/ensembl/genomics", "category": "genomics",
+        "description": "Genomic analysis — variant calls, comparative genomics, and region statistics.",
+        "query_hint": "Enter genomic region (chr:start-end) or variant ID",
+        "source": "https://rest.ensembl.org/",
+    },
+    "Ensembl Evolution": {
+        "folder_name": "Ensembl", "prefix": "/ensembl/evolution", "category": "genomics",
+        "description": "Evolutionary comparative genomics — gene trees, homologues, and synteny data.",
+        "query_hint": "Enter gene ID to find orthologues and paralogues across species",
+        "source": "https://rest.ensembl.org/",
+    },
+    "UniProt": {
+        "folder_name": "Uniprot", "prefix": "/uniprot", "category": "genomics",
+        "description": "Universal Protein Resource — comprehensive protein sequence and functional annotation.",
+        "query_hint": "Enter UniProt accession (e.g. P00519), gene name, or protein keyword",
+        "source": "https://www.uniprot.org/",
+    },
+    "ENA": {
+        "folder_name": "ENA", "prefix": "/ena", "category": "genomics",
+        "description": "European Nucleotide Archive — raw sequencing reads, assemblies, and annotations from all platforms.",
+        "query_hint": "Enter study accession (e.g. PRJEB12345), sample ID, or taxon name",
+        "source": "https://www.ebi.ac.uk/ena/",
+    },
+    "GWAS Catalog": {
+        "folder_name": "GWASCatalog", "prefix": "/gwas", "category": "genomics",
+        "description": "Genome-Wide Association Studies catalog — SNP-trait associations from published studies.",
+        "query_hint": "Enter trait/disease name (e.g. diabetes), gene, or SNP rsID (e.g. rs334)",
+        "source": "https://www.ebi.ac.uk/gwas/",
+    },
+    "gnomAD": {
+        "folder_name": "gnomAD", "prefix": "/gnomad", "category": "genomics",
+        "description": "Genome Aggregation Database — population variant frequencies across diverse ancestries.",
+        "query_hint": "Enter gene symbol (e.g. BRCA2) or variant ID to get population frequencies",
+        "source": "https://gnomad.broadinstitute.org/",
+    },
+    "ClinVar": {
+        "folder_name": "ClinVar", "prefix": "/clinvar", "category": "genomics",
+        "description": "Clinical variant interpretation — germline and somatic variant classifications with clinical significance.",
+        "query_hint": "Enter gene symbol (e.g. CFTR), variant, or condition name",
+        "source": "https://www.ncbi.nlm.nih.gov/clinvar/",
+    },
+    "Expression Atlas": {
+        "folder_name": "ExpressionAtlas", "prefix": "/expression-atlas", "category": "genomics",
+        "description": "Gene and protein expression across species, tissues, and experimental conditions.",
+        "query_hint": "Enter gene name (e.g. TP53) or condition (e.g. cancer) to see expression data",
+        "source": "https://www.ebi.ac.uk/gxa/",
+    },
+
+    # --- Annotation ---
+    "InterPro": {
+        "folder_name": "InterPro", "prefix": "/interpro", "category": "annotation",
+        "description": "Protein families, domains, and functional sites — classify your protein sequence.",
+        "query_hint": "Paste a protein sequence or enter an InterPro domain ID",
+        "source": "https://www.ebi.ac.uk/interpro/",
+    },
+    "Gene Ontology": {
+        "folder_name": "GeneOntology", "prefix": "/go", "category": "annotation",
+        "description": "Gene Ontology annotations and terms — molecular function, biological process, cellular component.",
+        "query_hint": "Enter GO term ID (e.g. GO:0006915), gene name, or keyword",
+        "source": "http://geneontology.org/",
+    },
+    "Reactome": {
+        "folder_name": "Reactome", "prefix": "/reactome", "category": "annotation",
+        "description": "Curated pathway database for protein reactions, signaling, and metabolism.",
+        "query_hint": "Enter pathway name, gene symbol, or protein ID to explore reactions",
+        "source": "https://reactome.org/",
+    },
+
+    # --- Variant ---
+    "SIFT": {
+        "folder_name": "SIFT", "prefix": "/sift", "category": "variant",
+        "description": "Sorting Intolerant From Tolerant — predicts whether an amino acid substitution affects protein function.",
+        "query_hint": "Paste a protein sequence and specify the variant position (e.g. A100G)",
+        "source": "https://sift.bii.a-star.edu.sg/",
+    },
+
+    # --- Pathway ---
+    "KEGG": {
+        "folder_name": "KEGG", "prefix": "/kegg", "category": "pathway",
+        "description": "Kyoto Encyclopedia of Genes and Genomes — pathways, metabolism, drugs, and diseases.",
+        "query_hint": "Enter pathway ID (e.g. hsa00010), gene, disease, or drug name",
+        "source": "https://www.kegg.jp/",
+    },
+    "STRING": {
+        "folder_name": "STRING", "prefix": "/string", "category": "pathway",
+        "description": "Protein-protein interaction networks — known and predicted interactions with functional enrichment.",
+        "query_hint": "Enter protein name, accession, or list of proteins for network analysis",
+        "source": "https://string-db.org/",
+    },
+
+    # --- Chemical ---
+    "ChEMBL": {
+        "folder_name": "ChEMBL", "prefix": "/chembl", "category": "chemical",
+        "description": "Bioactivity data for drug discovery — compounds, targets, assays, and drug mechanisms.",
+        "query_hint": "Enter ChEMBL ID (e.g. CHEMBL12), target name, or compound keyword",
+        "source": "https://www.ebi.ac.uk/chembl/",
+    },
+    "PubChem": {
+        "folder_name": "PubChem", "prefix": "/pubchem", "category": "chemical",
+        "description": "Chemical compounds, substances, bioassays, and patents — the largest public chemistry database.",
+        "query_hint": "Enter compound name (e.g. aspirin), CID, SMILES, or InChI key",
+        "source": "https://pubchem.ncbi.nlm.nih.gov/",
+    },
+    "DrugBank": {
+        "folder_name": "DrugBank", "prefix": "/drugbank", "category": "chemical",
+        "description": "Comprehensive drug database — mechanisms, targets, pharmacokinetics, and drug interactions.",
+        "query_hint": "Enter drug name (e.g. imatinib), DrugBank ID, or target protein",
+        "source": "https://www.drugbank.ca/",
+    },
+
+    # --- Literature ---
+    "Europe PMC": {
+        "folder_name": "EuropePMC", "prefix": "/europepmc", "category": "literature",
+        "description": "42M+ biomedical research articles, abstracts, citations, and text-mined annotations.",
+        "query_hint": "Enter keywords, author name, DOI, or PMID to search biomedical literature",
+        "source": "https://europepmc.org/",
+    },
+
+    # --- Interaction ---
+    "IntAct": {
+        "folder_name": "IntAct", "prefix": "/intact", "category": "interaction",
+        "description": "Molecular interaction database — curated protein-protein, protein-DNA, and protein-small molecule interactions.",
+        "query_hint": "Enter protein accession, gene name, or interaction ID to find binding partners",
+        "source": "https://www.ebi.ac.uk/intact/",
+    },
+
+    # --- Target ---
+    "Open Targets": {
+        "folder_name": "OpenTargets", "prefix": "/open-targets", "category": "target",
+        "description": "Target-disease associations for drug target prioritization using genetics, omics, and literature evidence.",
+        "query_hint": "Enter target gene (e.g. EGFR) or disease name to explore target-disease evidence",
+        "source": "https://platform.opentargets.org/",
+    },
+
+    # --- Proteomics ---
+    "PRIDE": {
+        "folder_name": "PRIDE", "prefix": "/pride", "category": "proteomics",
+        "description": "PRIDE / ProteomeXchange — mass spectrometry proteomics data repository.",
+        "query_hint": "Enter dataset accession (e.g. PXD000001), protein ID, or experiment keyword",
+        "source": "https://www.ebi.ac.uk/pride/",
+    },
+}
+
+
+@app.get("/discover-all", tags=["Discovery"])
+async def discover_all_apis():
+    """
+    Discover all registered bioinformatics APIs grouped by category.
+    Each API includes a description, query hint, and endpoints.
+    """
+    categorized: Dict[str, List[Dict[str, Any]]] = {}
+
+    for name, meta in API_REGISTRY.items():
+        cat = meta["category"]
+        if cat not in categorized:
+            categorized[cat] = []
+
+        api_entry = {
+            "name": name,
+            "folder_name": meta["folder_name"],
+            "base_url": meta.get("source", ""),
+            "prefix": meta["prefix"],
+            "category": cat,
+            "description": meta["description"],
+            "query_hint": meta.get("query_hint", ""),
+            "endpoints_count": meta.get("endpoints_count", 0),
+            "source": meta.get("source", ""),
+            "discovered_at": "2026-04-16T00:00:00",
+            "status": "active",
+        }
+        categorized[cat].append(api_entry)
+
+    return categorized
 
 
 # --- Enhanced Alignment Endpoint with Multi-Engine Support ---

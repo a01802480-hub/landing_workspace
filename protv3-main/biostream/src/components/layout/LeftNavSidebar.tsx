@@ -24,9 +24,9 @@ function LeftNavSidebar({ showPlusMenu, togglePlusMenu, closePlusMenu, onAddFold
           </button>
         )}
         
-        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors"><LayoutDashboard size={24} /></button>
-        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors"><FolderOpen size={24} /></button>
-        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors"><Search size={24} /></button>
+        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors" title="Dashboard" aria-label="Dashboard"><LayoutDashboard size={24} /></button>
+        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors" title="Projects" aria-label="Projects"><FolderOpen size={24} /></button>
+        <button className="p-3 hover:bg-white/10 rounded-lg transition-colors" title="Search" aria-label="Search"><Search size={24} /></button>
 
         {/* Plus Button */}
         <div className="relative">

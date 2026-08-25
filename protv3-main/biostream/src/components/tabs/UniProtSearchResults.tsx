@@ -132,7 +132,11 @@ const UniProtSearchResults: React.FC<UniProtSearchResultsProps> = ({ results }) 
                   <div className="flex-1">
                     {/* Accession & Type */}
                     <div className="flex items-center gap-2 mb-2">
-                      <button className="text-gray-600 hover:text-gray-900">
+                      <button
+                        className="text-gray-600 hover:text-gray-900"
+                        title={isExpanded ? 'Collapse details' : 'Expand details'}
+                        aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                      >
                         {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                       </button>
                       <span className="font-mono font-bold text-lg text-indigo-700">
@@ -309,6 +313,8 @@ const UniProtSearchResults: React.FC<UniProtSearchResultsProps> = ({ results }) 
               <button
                 onClick={() => setSelectedEntry(null)}
                 className="text-gray-600 hover:text-gray-900"
+                title="Close details"
+                aria-label="Close details"
               >
                 ✕
               </button>

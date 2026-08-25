@@ -166,7 +166,7 @@ const UniProtServicesTab: React.FC<UniProtServicesTabProps> = ({
           <div className="flex-1">
             <p className="text-sm text-red-800">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800">
+          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800" title="Dismiss error" aria-label="Dismiss error">
             ✕
           </button>
         </div>

@@ -100,7 +100,7 @@ const WorksheetTab: React.FC<WorksheetTabProps> = ({ project, alignmentResult, o
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-0 flex-1">
       <div className="border-b border-gray-200 bg-gray-50 p-4">
         <h2 className="text-lg font-semibold">Bio-Data Worksheet</h2>
         <p className="text-sm text-gray-600">A central log of all your sequences and analyses. Click an item to view details.</p>

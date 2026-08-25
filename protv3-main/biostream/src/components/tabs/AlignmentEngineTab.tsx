@@ -98,7 +98,7 @@ function AlignmentEngineTab({ activeProject, comparisonFiles, onAlignmentComplet
   };
 
   return (
-    <div className="flex flex-col h-full bg-white animate-in fade-in duration-500">
+    <div className="flex flex-col min-h-0 flex-1 bg-white animate-in fade-in duration-500">
       {/* Header Info */}
       <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -324,7 +324,8 @@ function AlignmentEngineTab({ activeProject, comparisonFiles, onAlignmentComplet
                 <div className="text-[10px] text-red-500 mt-2">
                   <strong>Troubleshooting:</strong>
                   <ul className="list-disc ml-4 mt-1">
-                    <li>Make sure the backend is running: <code>python main.py</code></li>
+                    <li>A local fallback alignment was attempted automatically.</li>
+                    <li>For best results, start the backend: run <code>run.bat</code> or <code>python main.py</code> in <code>protv3-main/Biobackend</code></li>
                     <li>Check that sequences are valid (protein: ACDEFGHIKLMNPQRSTVWY-, DNA: ATGC-)</li>
                     <li>Ensure both sequences have at least 1 character</li>
                   </ul>

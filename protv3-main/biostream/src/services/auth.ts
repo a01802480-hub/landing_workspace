@@ -62,11 +62,11 @@ class AuthService {
     }
   }
 
-  private clearTokens() {
+  clearTokens() {
     this.accessToken = null;
     this.refreshToken = null;
     this.user = null;
-    
+
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
@@ -76,15 +76,57 @@ class AuthService {
   }
 
   getAccessToken(): string | null {
+    // Fall back to localStorage in case the token was set externally
+    // (e.g. cross-origin handoff from the Next.js landing page)
+    if (!this.accessToken && typeof window !== 'undefined') {
+      this.accessToken = localStorage.getItem('access_token')
+    }
     return this.accessToken;
   }
 
   getUser(): User | null {
+    if (!this.user && typeof window !== 'undefined') {
+      const userData = localStorage.getItem('user')
+      if (userData) {
+        try { this.user = JSON.parse(userData) } catch { /* ignore */ }
+      }
+    }
     return this.user;
   }
 
+  /**
+   * Check if the user appears to have a session locally.
+   *
+   * IMPORTANT: This is a FAST, SYNCHRONOUS check only — it does NOT validate
+   * the token with the backend. Use `getCurrentUser()` for actual validation.
+   *
+   * In production, ProtectedRoute calls `getCurrentUser()` to verify the token
+   * before granting access. This method is for UI decisions (show login vs.
+   * logout button, etc.) where a fast local check is acceptable.
+   */
   isAuthenticated(): boolean {
-    return !!this.accessToken && !!this.user;
+    const hasToken = !!this.getAccessToken();
+    const hasUser = !!this.getUser();
+    // Also check that the stored token isn't obviously expired
+    // (we validate the JWT exp claim client-side as a cheap first pass)
+    if (hasToken && !this.isTokenExpired(this.getAccessToken()!)) {
+      return hasUser;
+    }
+    return false;
+  }
+
+  /**
+   * Client-side exp check — does NOT verify the signature.
+   * This is a cheap first pass only; actual validation happens server-side.
+   */
+  private isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = payload.exp * 1000; // convert to ms
+      return Date.now() >= exp;
+    } catch {
+      return true; // can't parse → treat as expired
+    }
   }
 
   async register(data: RegisterData): Promise<AuthResponse> {
@@ -139,11 +181,12 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
-      if (this.accessToken) {
+      const token = this.getAccessToken()
+      if (token) {
         await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.accessToken}`,
+            'Authorization': `Bearer ${token}`,
           },
         });
       }
@@ -155,6 +198,10 @@ class AuthService {
   }
 
   async refreshAccessToken(): Promise<string> {
+    // Fall back to localStorage in case refresh token was set externally
+    if (!this.refreshToken && typeof window !== 'undefined') {
+      this.refreshToken = localStorage.getItem('refresh_token')
+    }
     if (!this.refreshToken) {
       throw new Error('No refresh token available');
     }
@@ -174,11 +221,19 @@ class AuthService {
 
       const data = await response.json();
       this.accessToken = data.access_token;
-      
+
+      // Handle refresh token rotation (new refresh token issued on each refresh)
+      if (data.refresh_token) {
+        this.refreshToken = data.refresh_token;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+      }
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('access_token', data.access_token);
       }
-      
+
       return data.access_token;
     } catch (error) {
       console.error('Token refresh error:', error);
@@ -188,7 +243,8 @@ class AuthService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    if (!this.accessToken) {
+    const token = this.getAccessToken()
+    if (!token) {
       return null;
     }
 
@@ -234,8 +290,9 @@ class AuthService {
       'Content-Type': 'application/json',
     };
     
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    const token = this.getAccessToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     
     return headers;

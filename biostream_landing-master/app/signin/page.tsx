@@ -210,21 +210,9 @@ export default function SignIn() {
                 minLength={6}
               />
               {!isSignUp && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Test credentials: example@gmail.com / 1234567
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('example@gmail.com');
-                      setPassword('1234567');
-                    }}
-                    className="text-xs text-indigo-600 hover:text-indigo-700 underline"
-                  >
-                    Auto-fill test credentials
-                  </button>
-                </div>
+                <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                  Sign in with your account to access the workspace.
+                </p>
               )}
             </div>
 

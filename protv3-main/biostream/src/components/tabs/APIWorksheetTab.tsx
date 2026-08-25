@@ -338,6 +338,8 @@ export default function APIWorksheetTab() {
                           handleUpdateNotes(selectedEntry.id, editingNotes[selectedEntry.id])
                         }
                         className="p-2 bg-green-600 hover:bg-green-700 rounded transition-colors"
+                        title="Save notes"
+                        aria-label="Save notes"
                       >
                         <Check className="w-4 h-4" />
                       </button>
@@ -350,6 +352,8 @@ export default function APIWorksheetTab() {
                           });
                         }}
                         className="p-2 bg-slate-600 hover:bg-slate-700 rounded transition-colors"
+                        title="Cancel editing"
+                        aria-label="Cancel editing"
                       >
                         <X className="w-4 h-4" />
                       </button>
