@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ── Tailwind v4 theme tokens ──────────────────────────────────────────────
    The custom color utilities used across every component (text-frost,

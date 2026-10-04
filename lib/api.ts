@@ -22,7 +22,12 @@ export interface ApiOptions {
   headers?: Record<string, string>;
 }
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
+/**
+ * Base URL for the FastAPI backend. Defaults to the local dev backend so a
+ * plain `npm run dev` reaches the API with no env setup; production builds
+ * set NEXT_PUBLIC_API_BASE_URL at build time (start-all.bat sets it too).
+ */
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 function readCsrfToken(): string {
   try {

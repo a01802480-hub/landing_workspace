@@ -1,5 +1,6 @@
 @echo off
 setlocal
+title Protheon Backend
 echo ========================================
 echo   Protheon - Backend API
 echo ========================================
@@ -13,18 +14,17 @@ where python >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Python is not installed or not in PATH.
     echo Install from: https://python.org/
-    pause
-    exit /b 1
+    goto :end
 )
 
 REM Check / install dependencies
 echo [CHECK] Verifying Python dependencies...
-python -c "import fastapi, uvicorn, pydantic_settings, httpx" 2>nul
+python -c "import fastapi, uvicorn, pydantic_settings, httpx" >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [INSTALL] Installing backend dependencies...
     pip install -r "%BACKEND_DIR%\requirements.txt"
     if %ERRORLEVEL% NEQ 0 (
-        echo [WARNING] Full requirements install failed — installing core packages...
+        echo [WARNING] Full requirements install failed - installing core packages...
         pip install fastapi uvicorn pydantic pydantic-settings httpx
     )
     echo.
@@ -43,5 +43,7 @@ echo.
 cd /d "%BACKEND_DIR%"
 python -m uvicorn app.main:app --reload --port 8000
 
+:end
+echo.
 pause
 endlocal
