@@ -3,9 +3,21 @@ Write-Host " Setting up DeepSeek Environment Variables" -ForegroundColor magenta
 Write-Host "====================================================" -ForegroundColor cyan
 Write-Host ""
 
-# Set Base URL and Auth Token
+# Set Base URL
 $env:ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic"
-$env:ANTHROPIC_AUTH_TOKEN="sk-761240509ed34f6d9a9620242d1569a5"
+
+# Auth token — NEVER hardcode a key here (this file is in git).
+# Load order: 1) DEEPSEEK_API_KEY in your shell env, 2) a local
+# gitignored file `deepseek.token` next to this script.
+if ($env:DEEPSEEK_API_KEY) {
+    $env:ANTHROPIC_AUTH_TOKEN = $env:DEEPSEEK_API_KEY
+} elseif (Test-Path "$PSScriptRoot\deepseek.token") {
+    $env:ANTHROPIC_AUTH_TOKEN = (Get-Content "$PSScriptRoot\deepseek.token" -Raw).Trim()
+} else {
+    Write-Host "ERROR: No DeepSeek API key found." -ForegroundColor Red
+    Write-Host "  Set DEEPSEEK_API_KEY, or put the key in deepseek.token (gitignored)." -ForegroundColor Yellow
+    exit 1
+}
 
 # Set Model Overrides
 $env:ANTHROPIC_MODEL="deepseek-v4-pro[1m]"
@@ -22,5 +34,5 @@ Write-Host ""
 
 # Enter the project directory and execute the claude command to get started
 Write-Host "Starting Claude Code..." -ForegroundColor Yellow
-cd "C:\Users\Santiago Arizpe\OneDrive\Desktop\Global-Innovation-Build-Challenge-V2"  # <--- CHANGE THIS TO YOUR ACTUAL PROJECT FOLDER PATH
+cd "C:\Users\Santiago Arizpe\OneDrive\Desktop\landing_workspace"  # <--- CHANGE THIS TO YOUR ACTUAL PROJECT FOLDER PATH
 claude

@@ -1,12 +1,12 @@
 @echo off
 setlocal
 echo ========================================
-echo   BioStream - Backend API
+echo   Protheon - Backend API
 echo ========================================
 echo.
 
 set "ROOT_DIR=%~dp0"
-set "BACKEND_DIR=%ROOT_DIR%protv3-main\Biobackend"
+set "BACKEND_DIR=%ROOT_DIR%backend"
 
 REM Check Python
 where python >nul 2>nul
@@ -19,29 +19,29 @@ if %ERRORLEVEL% NEQ 0 (
 
 REM Check / install dependencies
 echo [CHECK] Verifying Python dependencies...
-cd /d "%BACKEND_DIR%"
-python -c "import fastapi, uvicorn, requests" 2>nul
+python -c "import fastapi, uvicorn, pydantic_settings, httpx" 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [INSTALL] Installing backend dependencies...
-    pip install -r requirements.txt
+    pip install -r "%BACKEND_DIR%\requirements.txt"
     if %ERRORLEVEL% NEQ 0 (
         echo [WARNING] Full requirements install failed — installing core packages...
-        pip install fastapi uvicorn pydantic requests httpx
+        pip install fastapi uvicorn pydantic pydantic-settings httpx
     )
     echo.
 )
 
-echo [START] Launching BioStream Backend API...
+echo [START] Launching Protheon Backend API...
 echo.
-echo   API:     http://localhost:8000
-echo   Docs:    http://localhost:8000/docs
-echo   Health:  http://localhost:8000/
+echo   API:     http://localhost:8000/api
+echo   Docs:    http://localhost:8000/api/docs
+echo   Health:  http://localhost:8000/api/health
 echo.
 echo   Press Ctrl+C to stop.
 echo ========================================
 echo.
 
-python main.py
+cd /d "%BACKEND_DIR%"
+python -m uvicorn app.main:app --reload --port 8000
 
 pause
 endlocal

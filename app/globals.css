@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Tailwind v4 theme tokens ──────────────────────────────────────────────
+   The custom color utilities used across every component (text-frost,
+   bg-ink-950/5, border-glow-violet/50 …) resolve against these slots.
+   Opacity modifiers (/10, /50) work automatically because they are theme
+   colors, not plain classes. */
+@theme {
+  --color-frost: #202a44;
+  --color-mist: #66718f;
+  --color-ink-950: #202a44;
+  --color-glow-violet: #6d5ae0;
+  --color-glow-cyan: #3987e5;
+}
+
 /* ── Protheon "zero-gravity clinical" design tokens ───────────────────────
    Light clinical theme: pristine white planes, degraded purple (violet →
    lavender) atmosphere, deep slate ink. Everything floats in a sterile

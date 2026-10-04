@@ -7,10 +7,11 @@ import { AlignmentResultSchema, GeneDashboardSchema, type GeneDashboardValidated
 import { FloatIn } from "@/components/antigravity/FloatIn";
 import { GlassCard } from "@/components/antigravity/GlassCard";
 import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
+import { StatTile } from "@/components/workspace/panels/StatTile";
 import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
-import { AlignmentViewer } from "@/components/workspace/AlignmentViewer";
-import { DomainTrack } from "@/components/workspace/DomainTrack";
-import { OrthologCard } from "@/components/workspace/OrthologCard";
+import { AlignmentViewer } from "@/components/workspace/comparative/AlignmentViewer";
+import { DomainTrack } from "@/components/workspace/comparative/DomainTrack";
+import { OrthologCard } from "@/components/workspace/comparative/OrthologCard";
 import { MsaPanel } from "@/components/workspace/comparative/MsaPanel";
 
 const PRESETS = ["LIG1", "PNKP"];
@@ -127,38 +128,32 @@ export default function ComparativePage() {
       {data && !loading && (
         <PanelBoundary title="Comparative dashboard">
           <FloatIn stagger={0.1} className="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <GlassCard className="p-5">
-              <p className="text-xs tracking-wide text-mist/60 uppercase">Human protein</p>
-              <p className="mt-2 text-base font-semibold text-frost">{data.human.name ?? data.gene}</p>
-              <p className="mt-1 text-xs text-mist/70">
-                {data.human.accession} · {fmt(data.human.length, 0)} aa
-              </p>
-            </GlassCard>
-            <GlassCard className="p-5">
-              <p className="text-xs tracking-wide text-mist/60 uppercase">Whale ortholog</p>
-              <p className="mt-2 text-base font-semibold text-frost">
-                {data.ortholog.species_label ?? "Unavailable"}
-              </p>
-              <p className="mt-1 text-xs text-mist/70">
-                {data.ortholog.available
-                  ? `${fmt(data.ortholog.percent_identity, 1)}% identity · ${data.ortholog.sequence?.length ?? "—"} aa`
-                  : "see detail below"}
-              </p>
-            </GlassCard>
-            <GlassCard className="p-5">
-              <p className="text-xs tracking-wide text-mist/60 uppercase">Pairwise identity</p>
-              <p className="stat-num mt-2 text-2xl font-semibold text-glow-cyan">
-                {alignment ? `${fmt(alignment.identity_pct, 1)}%` : "—"}
-              </p>
-              <p className="mt-1 text-xs text-mist/70">
-                {alignment ? `${alignment.matches} matches · ${alignment.mismatches} mismatches` : "no sequences"}
-              </p>
-            </GlassCard>
-            <GlassCard className="p-5">
-              <p className="text-xs tracking-wide text-mist/60 uppercase">InterPro entries</p>
-              <p className="stat-num mt-2 text-2xl font-semibold text-glow-violet">{fmt(data.domains.length, 0)}</p>
-              <p className="mt-1 text-xs text-mist/70">annotated regions</p>
-            </GlassCard>
+            <StatTile
+              label="Human protein"
+              value={data.human.name ?? data.gene}
+              caption={`${data.human.accession} · ${fmt(data.human.length, 0)} aa`}
+            />
+            <StatTile
+              label="Whale ortholog"
+              value={data.ortholog.species_label ?? "Unavailable"}
+              caption={
+                data.ortholog.available
+                  ? `${data.ortholog.percent_identity !== undefined ? fmt(data.ortholog.percent_identity, 1) : "—"}% identity · ${data.ortholog.sequence?.length ?? "—"} aa`
+                  : "see detail below"
+              }
+            />
+            <StatTile
+              label="Pairwise identity"
+              value={alignment ? `${fmt(alignment.identity_pct, 1)}%` : "—"}
+              accent="#3987e5"
+              caption={alignment ? `${alignment.matches} matches · ${alignment.mismatches} mismatches` : "no sequences"}
+            />
+            <StatTile
+              label="InterPro entries"
+              value={fmt(data.domains.length, 0)}
+              accent="#6d5ae0"
+              caption="annotated regions"
+            />
           </FloatIn>
 
           <FloatIn stagger={0.1} className="mb-8 grid gap-6 lg:grid-cols-2">

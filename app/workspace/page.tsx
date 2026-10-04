@@ -2,53 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Dna, FlaskConical, GitCompareArrows, Orbit, Pill, Zap, type LucideIcon } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { apiValidated } from "@/lib/api";
 import { CatalogSchema } from "@/lib/validation";
+import { WORKSPACE_TOOLS } from "@/lib/tools";
 import { FloatIn } from "@/components/antigravity/FloatIn";
 import { GlassCard } from "@/components/antigravity/GlassCard";
 import { IsometricTilt } from "@/components/antigravity/IsometricTilt";
-import { HealthChip } from "@/components/workspace/HealthChip";
+import { HealthChip } from "@/components/workspace/shell/HealthChip";
+import { StatTile } from "@/components/workspace/panels/StatTile";
 import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
-
-const TOOLS: { href: string; icon: LucideIcon; title: string; body: string }[] = [
-  {
-    href: "/workspace/structure",
-    icon: Dna,
-    title: "Structure workspace",
-    body: "3Dmol strict cartoon (α-helix ribbons, β-sheet arrows), full-residue sequence track, pLDDT chart and PAE heatmap — all synced.",
-  },
-  {
-    href: "/workspace/dna",
-    icon: Orbit,
-    title: "DNA & plasmid maps",
-    body: "Benchling-style dual-stranded sequence viewer and interactive circular plasmid map (pBR322): restriction sites, ORFs, features — synchronized.",
-  },
-  {
-    href: "/workspace/interactions",
-    icon: Pill,
-    title: "Interactions",
-    body: "Empirical protein–drug docking (ΔG, Kd, contact points) and solvent-driven denaturation with a live 3D unfolding view.",
-  },
-  {
-    href: "/workspace/comparative",
-    icon: GitCompareArrows,
-    title: "Comparative genomics",
-    body: "LIG1 and PNKP: human vs. blue-whale orthologs, InterPro domain tracks, pairwise alignment, and Clustal Omega multi-sequence alignments.",
-  },
-  {
-    href: "/workspace/variants",
-    icon: Zap,
-    title: "Variant impact",
-    body: "Submit a substitution — get AlphaFold pLDDT, AlphaMissense pathogenicity and SIFT tolerance, each degrading gracefully on its own.",
-  },
-  {
-    href: "/workspace/lab",
-    icon: FlaskConical,
-    title: "In silico lab",
-    body: "Restriction digests with agarose gel readouts, a live 2D Michaelis–Menten particle simulator, kinetics and dose–response — all CSV-exportable.",
-  },
-];
 
 export default function WorkspaceHub() {
   const [structureCount, setStructureCount] = useState<number | null>(null);
@@ -80,27 +43,27 @@ export default function WorkspaceHub() {
         <HealthChip />
       </FloatIn>
 
-      {/* Watermelon-style KPI blocks — dashboard summary tiles. */}
+      {/* KPI blocks — the shared StatTile, one block style for every dashboard. */}
       <FloatIn stagger={0.1} className="mb-8 grid gap-4 sm:grid-cols-3">
-        <GlassCard className="p-5">
-          <p className="text-[10px] tracking-[0.18em] text-mist/60 uppercase">Challenge structures</p>
-          <p className="stat-num mt-2 text-2xl font-semibold text-frost">{structureCount ?? "…"}</p>
-          <p className="mt-1 text-xs text-mist/70">LIG1 · RuBisCO presets, one click away</p>
-        </GlassCard>
-        <GlassCard className="p-5">
-          <p className="text-[10px] tracking-[0.18em] text-mist/60 uppercase">Analysis channels</p>
-          <p className="stat-num mt-2 text-2xl font-semibold text-frost">10</p>
-          <p className="mt-1 text-xs text-mist/70">pLDDT · PAE · writhe · domains · alignment · pathogenicity · SIFT · restriction maps · kinetics</p>
-        </GlassCard>
-        <GlassCard className="p-5">
-          <p className="text-[10px] tracking-[0.18em] text-mist/60 uppercase">Upstream sources</p>
-          <p className="stat-num mt-2 text-2xl font-semibold text-frost">7</p>
-          <p className="mt-1 text-xs text-mist/70">AlphaFold DB · RCSB · UniProt · Ensembl · InterPro · NCBI Entrez · AlphaMissense/VEP</p>
-        </GlassCard>
+        <StatTile
+          label="Challenge structures"
+          value={structureCount ?? "…"}
+          caption="LIG1 · RuBisCO presets, one click away"
+        />
+        <StatTile
+          label="Analysis channels"
+          value={WORKSPACE_TOOLS.length}
+          caption="structure · DNA · CRISPR · pipelines · interactions · comparative · variants · lab"
+        />
+        <StatTile
+          label="Upstream sources"
+          value="7"
+          caption="AlphaFold DB · RCSB · UniProt · Ensembl · InterPro · NCBI Entrez · AlphaMissense/VEP"
+        />
       </FloatIn>
 
       <FloatIn stagger={0.1} className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {TOOLS.map((t) => (
+        {WORKSPACE_TOOLS.map((t) => (
           <IsometricTilt key={t.href} className="h-full">
             <Link href={t.href} className="block h-full">
               <GlassCard className="flex h-full flex-col p-7">

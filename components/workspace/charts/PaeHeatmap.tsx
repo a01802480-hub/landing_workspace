@@ -285,7 +285,7 @@ export function PaeHeatmap({
         </button>
       </div>
       <p className="px-1 text-[9px] text-mist/50">
-        {data.stride > 1 ? `mean-pooled ×${data.stride} · ${n}×${n} displayed` : `${n}×${n} residues`} · row/column = residue number
+        {(data.stride ?? 1) > 1 ? `mean-pooled ×${data.stride} · ${n}×${n} displayed` : `${n}×${n} residues`} · row/column = residue number
       </p>
     </div>
   );

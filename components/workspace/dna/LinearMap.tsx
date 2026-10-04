@@ -19,6 +19,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { DnaRegistry } from "@/lib/validation";
 import { BASE_COLORS, enzymeColor, featureColor, gcPercent } from "@/lib/dna";
 import { reverseComplement, translate } from "@/lib/codon";
+import { regionSlice } from "@/components/workspace/tracks/FeatureTrack";
 
 const ROW_FONT = 10;
 
@@ -123,8 +124,7 @@ export const LinearMap = memo(function LinearMap({
       <div className="shrink-0 border-b border-ink-950/5 px-3 py-2">
         <div className="relative h-8 w-full">
           {features.map((f, i) => {
-            const left = ((f.start - 1) / seq.length) * 100;
-            const width = Math.max(0.5, ((f.end - f.start + 1) / seq.length) * 100);
+            const { left, width } = regionSlice(f.start, f.end, seq.length, 0.5);
             return (
               <button
                 key={`${f.type}:${f.start}:${i}`}

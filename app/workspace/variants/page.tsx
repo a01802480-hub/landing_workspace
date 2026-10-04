@@ -8,9 +8,9 @@ import { FloatIn } from "@/components/antigravity/FloatIn";
 import { GlassCard } from "@/components/antigravity/GlassCard";
 import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
 import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
-import { ConsensusMeter } from "@/components/workspace/ConsensusMeter";
-import { PlddtStrip } from "@/components/workspace/PlddtStrip";
-import { ScoreCard, ScoreRow, type ScoreTone } from "@/components/workspace/ScoreCard";
+import { ConsensusMeter } from "@/components/workspace/variants/ConsensusMeter";
+import { PlddtStrip } from "@/components/workspace/sequence/PlddtStrip";
+import { ScoreCard, ScoreRow, type ScoreTone } from "@/components/workspace/panels/ScoreCard";
 
 interface FormState {
   uniprot: string;
@@ -203,7 +203,7 @@ function PlddtCard({ impact }: { impact: VariantImpactValidated }) {
     >
       <ScoreRow k="pLDDT at position" v={<span style={{ color: band.color }}>{fmt(p.plddt, 1)}</span>} />
       <ScoreRow k="Band" v={band.label} />
-      <ScoreRow k="Mean model pLDDT" v={fmt(p.mean_model_plddt, 1)} />
+      <ScoreRow k="Mean model pLDDT" v={p.mean_model_plddt !== undefined ? fmt(p.mean_model_plddt, 1) : "—"} />
     </ScoreCard>
   );
 }
@@ -228,7 +228,7 @@ function AlphaMissenseCard({ impact }: { impact: VariantImpactValidated }) {
       footnote="AlphaMissense class for the substitution at this position (hegelab hotspot API)."
     >
       <ScoreRow k="Class" v={a.class} />
-      <ScoreRow k="Mean pathogenicity" v={fmt(a.mean_pathogenicity, 4)} mono />
+      <ScoreRow k="Mean pathogenicity" v={a.mean_pathogenicity !== undefined ? fmt(a.mean_pathogenicity, 4) : "—"} mono />
     </ScoreCard>
   );
 }
@@ -252,9 +252,14 @@ function SiftCard({ impact }: { impact: VariantImpactValidated }) {
       toneLabel={pred.replace(/_/g, " ")}
       footnote="SIFT + PolyPhen computed by Ensembl VEP on the canonical transcript."
     >
-      <ScoreRow k="SIFT score" v={fmt(s.sift.score, 3)} mono />
+      <ScoreRow k="SIFT score" v={s.sift.score !== undefined ? fmt(s.sift.score, 3) : "—"} mono />
       <ScoreRow k="Prediction" v={pred} />
-      {s.polyphen && <ScoreRow k="PolyPhen" v={`${s.polyphen.prediction ?? ""} ${fmt(s.polyphen.score, 3)}`} />}
+      {s.polyphen && (
+        <ScoreRow
+          k="PolyPhen"
+          v={`${s.polyphen.prediction ?? ""} ${s.polyphen.score !== undefined ? fmt(s.polyphen.score, 3) : ""}`}
+        />
+      )}
     </ScoreCard>
   );
 }

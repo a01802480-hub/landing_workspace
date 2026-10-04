@@ -7,17 +7,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { HealthChip } from "@/components/workspace/HealthChip";
+import { OVERVIEW_META, WORKSPACE_TOOLS } from "@/lib/tools";
+import { HealthChip } from "./HealthChip";
 
-const TITLES: Record<string, { title: string; note: string }> = {
-  "/workspace": { title: "Overview", note: "Workspace dashboard" },
-  "/workspace/structure": { title: "Structure", note: "3D viewer · confidence · PAE" },
-  "/workspace/dna": { title: "DNA", note: "sequence & plasmid maps · restriction sites" },
-  "/workspace/comparative": { title: "Comparative", note: "Orthologs · domains · alignment" },
-  "/workspace/variants": { title: "Variants", note: "pLDDT · AlphaMissense · SIFT" },
-  "/workspace/lab": { title: "In silico lab", note: "digest & gel · kinetics · dose-response" },
-  "/workspace/interactions": { title: "Interactions", note: "docking · ΔG/Kd · solvent denaturation" },
-};
+/** Path → title/note lookup, derived from the single tool registry. */
+const TITLES: Record<string, { title: string; note: string }> = Object.fromEntries([
+  ["/workspace", OVERVIEW_META],
+  ...WORKSPACE_TOOLS.map((t) => [t.href, { title: t.title, note: t.note }] as const),
+]);
 
 export function TopBar() {
   const pathname = usePathname();

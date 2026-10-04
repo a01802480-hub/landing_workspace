@@ -42,6 +42,7 @@ import {
 import { Panel } from "@/components/workspace/panels/Panel";
 import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
 import { PanelSkeleton } from "@/components/workspace/panels/PanelSkeleton";
+import { ALIGNMENT_COLORS } from "./alignmentStyle";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -56,10 +57,10 @@ const FASTA_DRAFT_KEY = "comparative:msa-fasta";
 const RAMP_LOW = "#eef4fc";
 const RAMP_MID = "#6da7ec";
 const RAMP_HIGH = "#0d366b";
-/** Residue inks: match-to-consensus / mismatch / gap. */
-const INK = "#202a44";
-const AMBER = "#b07a00";
-const GAP = "#a3aec8";
+/** Residue inks come from the shared alignment contract (alignmentStyle.tsx). */
+const INK = ALIGNMENT_COLORS.match;
+const AMBER = ALIGNMENT_COLORS.mismatchSoft;
+const GAP = ALIGNMENT_COLORS.gap;
 const COL_W = 10;
 
 /**
@@ -456,6 +457,10 @@ export function MsaPanel() {
         });
         if (cancelled) return;
         if (status.status === "done") {
+          if (!status.result) {
+            setJob({ kind: "error", detail: "The alignment job finished without results — retry it." });
+            return;
+          }
           setJob({ kind: "done", result: status.result });
           return;
         }

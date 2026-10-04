@@ -160,7 +160,7 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
     setError(null);
     (async () => {
       try {
-        const text = await apiRaw(`/structure/pdb/${pdbId}/file`, { timeoutMs: 120_000 });
+        const text = await apiRaw<string>(`/structure/pdb/${pdbId}/file`, { timeoutMs: 120_000 });
         if (cancelled) return;
         const atoms = parsePdb(text);
         const primaryChain = [...new Set(atoms.map((a) => a.chain))].sort(

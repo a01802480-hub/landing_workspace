@@ -15,16 +15,12 @@ import {
   ChevronLeft,
   Database,
   Dna,
-  FlaskConical,
-  GitCompareArrows,
   Globe,
   LayoutGrid,
-  Orbit,
-  Pill,
   Waypoints,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
+import { WORKSPACE_TOOLS } from "@/lib/tools";
 import { usePersistentState } from "@/lib/persistence";
 
 interface RailItem {
@@ -39,17 +35,13 @@ interface RailSection {
   items: RailItem[];
 }
 
+/** Workspace section derives from the single tool registry (lib/tools.ts). */
 const SECTIONS: RailSection[] = [
   {
     label: "Workspace",
     items: [
       { href: "/workspace", label: "Overview", icon: LayoutGrid },
-      { href: "/workspace/structure", label: "Structure", icon: Dna },
-      { href: "/workspace/dna", label: "DNA", icon: Orbit },
-      { href: "/workspace/interactions", label: "Interactions", icon: Pill },
-      { href: "/workspace/comparative", label: "Comparative", icon: GitCompareArrows },
-      { href: "/workspace/variants", label: "Variants", icon: Zap },
-      { href: "/workspace/lab", label: "In silico lab", icon: FlaskConical },
+      ...WORKSPACE_TOOLS.map((t) => ({ href: t.href, label: t.label, icon: t.icon })),
     ],
   },
   {

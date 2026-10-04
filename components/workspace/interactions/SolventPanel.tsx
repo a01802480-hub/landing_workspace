@@ -194,7 +194,7 @@ export function SolventPanel() {
               tooltip={(p) => (
                 <span className="chip !bg-white/90 backdrop-blur-md">
                   <span className="stat-num">{fmt(p.resi, 1)} M</span>
-                  <span className="text-mist/80">ε {fmt(epsByConc.get(p.resi), 0)}</span>
+                  <span className="text-mist/80">ε {fmt(epsByConc.get(p.resi) ?? 0, 0)}</span>
                   <span className="text-mist/80">unfolded {fmt((p.value ?? 0) * 100, 0)}%</span>
                 </span>
               )}

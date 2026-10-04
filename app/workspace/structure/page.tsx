@@ -43,6 +43,8 @@ import { SequenceTrack, type TrackResidue } from "@/components/workspace/sequenc
 import { PlddtChart, type PlddtPoint } from "@/components/workspace/charts/PlddtChart";
 import { WritheChart } from "@/components/workspace/charts/WritheChart";
 import { PaeHeatmap } from "@/components/workspace/charts/PaeHeatmap";
+import { PlddtLegend } from "@/components/workspace/sequence/PlddtLegend";
+import { StatTile } from "@/components/workspace/panels/StatTile";
 import type { ColorMode, Mutation, RenderStyle } from "@/components/three/ProteinViewer";
 
 // 3Dmol.js cartoon renderer, loaded client-side only (the library is a
@@ -714,19 +716,7 @@ function ViewerLegend({ colorMode, model }: { colorMode: ColorMode; model: Struc
   if (!model) return null;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {colorMode === "plddt" && (
-        <>
-          {[95, 80, 60, 40].map((v) => {
-            const band = plddtBand(v);
-            return (
-              <span key={band.label} className="chip !bg-white/80 backdrop-blur-md">
-                <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: band.color }} />
-                {band.label} · {band.range}
-              </span>
-            );
-          })}
-        </>
-      )}
+      {colorMode === "plddt" && <PlddtLegend />}
       {colorMode === "writhe" && (
         <>
           <span className="chip !border-violet-300/50 !bg-white/80 backdrop-blur-md">− twist</span>
@@ -765,42 +755,26 @@ function StatsStrip({ model }: { model: StructureModel }) {
   return (
     <div className="grid shrink-0 grid-cols-2 gap-3">
       <StatTile
+        dense
         label="Mean pLDDT"
         value={mean === undefined ? "—" : fmt(mean, 1)}
         chip={band ? { color: band.color, label: band.label } : undefined}
       />
       <StatTile
+        dense
         label="Total writhe"
         value={model.writhe === null || model.writhe === undefined ? "—" : fmt(model.writhe, 3)}
         accent={model.writhe && model.writhe !== 0 ? (model.writhe > 0 ? "#3987e5" : "#9085e9") : undefined}
       />
-      <StatTile label="Residues" value={model.full_residue_count ? `${fmt(model.residue_count, 0)} / ${fmt(model.full_residue_count, 0)}` : fmt(model.residue_count, 0)} />
+      <StatTile dense label="Residues" value={model.full_residue_count ? `${fmt(model.residue_count, 0)} / ${fmt(model.full_residue_count, 0)}` : fmt(model.residue_count, 0)} />
       <StatTile
+        dense
         label="Model"
         value={
           meta?.entry_id ??
           (meta?.model_created_date ? `v${meta.latest_version ?? "?"} · ${meta.model_created_date}` : model.pdb_id ?? "—")
         }
       />
-    </div>
-  );
-}
-
-function StatTile({ label, value, chip, accent }: { label: string; value: string; chip?: { color: string; label: string }; accent?: string }) {
-  return (
-    <div className="glass-card px-4 py-3">
-      <p className="text-[9px] tracking-[0.16em] text-mist/60 uppercase">{label}</p>
-      <div className="mt-1 flex items-baseline gap-2">
-        <p className="stat-num min-w-0 truncate text-lg font-semibold text-frost" style={accent ? { color: accent } : undefined} title={value}>
-          {value}
-        </p>
-        {chip && (
-          <span className="chip shrink-0">
-            <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: chip.color }} />
-            {chip.label}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

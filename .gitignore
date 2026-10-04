@@ -1,0 +1,40 @@
+# Dependencies / build output
+node_modules/
+.next/
+out/
+.pnpm-store/
+
+# Secrets — NEVER commit these. backend/.env holds every key
+# (UniProt/Ensembl/Entrez, Nextflow Tower, Anthropic, Pinecone).
+.env
+.env.*
+!.env.example
+!*.env.example
+backend/.env
+backend/.env.*
+*.local
+
+# Session / scraped data files (may contain cookies or session tokens)
+backend/cookies.txt
+backend/cmp.json
+backend/cmp2.json
+backend/cmp3.json
+backend/var.json
+backend/var2.json
+backend/rcsb.json
+
+# Local API tokens (loaded by claude.ps1 instead of hardcoding)
+deepseek.token
+claude.token
+*.token
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

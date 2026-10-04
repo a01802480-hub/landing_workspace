@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     alphamissense_base_url: str = "https://alphamissense.hegelab.org"
     alphafold_base_url: str = "https://alphafold.ebi.ac.uk/api"
     entrez_base_url: str = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    # CRISPR tool APIs — optional; the local scoring core runs without them
+    # and the off-target column degrades to an honest "scan unavailable".
+    chopchop_base_url: str | None = None
+    crispr_p_base_url: str | None = None
+    # Nextflow Tower — optional; unset runs the in-process demo simulator
+    # (payloads are badged source:"demo" so it can never masquerade as compute).
+    nextflow_tower_url: str | None = None
+    nextflow_tower_token: str | None = None
 
     # ── Optional credentials (server-side only — NEVER send to the client) ──
     ensembl_api_key: str | None = None
@@ -71,6 +79,9 @@ class Settings(BaseSettings):
             "entrez": True,
             "agentic_llm": self.anthropic_api_key is not None,
             "vector_store": self.pinecone_api_key is not None,
+            "chopchop": self.chopchop_base_url is not None,
+            "crispr_p": self.crispr_p_base_url is not None,
+            "nextflow_tower": bool(self.nextflow_tower_url and self.nextflow_tower_token),
         }
 
 

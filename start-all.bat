@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 echo ========================================
-echo   BioStream - Starting All Services
+echo   Protheon - Starting All Services
 echo ========================================
 echo.
 
@@ -40,7 +40,7 @@ set "NO_BACKEND=0"
 where python >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [WARNING] Python is not installed or not in PATH.
-    echo   The backend API will NOT start. BioStream will run with limited features.
+    echo   The backend API will NOT start. The workspace will run with limited features.
     echo   Install from: https://python.org/
     set "NO_BACKEND=1"
 ) else (
@@ -63,50 +63,30 @@ echo.
 echo [SETUP] Checking and installing dependencies...
 echo.
 
-REM --- Landing Page (Next.js) ---
-if not exist "%ROOT_DIR%\biostream_landing-master\node_modules" (
-    echo   [INSTALL] Landing Page dependencies...
-    cd /d "%ROOT_DIR%\biostream_landing-master"
+REM --- Frontend (Next.js workspace at the repo root) ---
+if not exist "%ROOT_DIR%\node_modules" (
+    echo   [INSTALL] Frontend dependencies (npm install — first run only)...
+    cd /d "%ROOT_DIR%"
     call npm install
     if %ERRORLEVEL% NEQ 0 (
-        echo   [ERROR] Failed to install Landing Page dependencies.
+        echo   [ERROR] Failed to install frontend dependencies.
         pause
         exit /b 1
     )
-    cd /d "%ROOT_DIR%"
 ) else (
-    echo   [OK] Landing Page dependencies found.
+    echo   [OK] Frontend dependencies found.
 )
 
-REM --- Workspace (Vite + React) ---
-if not exist "%ROOT_DIR%\protv3-main\biostream\node_modules" (
-    echo   [INSTALL] Workspace dependencies...
-    cd /d "%ROOT_DIR%\protv3-main\biostream"
-    call npm install
-    if %ERRORLEVEL% NEQ 0 (
-        echo   [ERROR] Failed to install Workspace dependencies.
-        pause
-        exit /b 1
-    )
-    cd /d "%ROOT_DIR%"
-) else (
-    echo   [OK] Workspace dependencies found.
-)
-
-REM --- Backend (Python) ---
+REM --- Backend (FastAPI in backend/) ---
 if "!NO_BACKEND!"=="0" (
-    REM Check if key dependencies are installed by trying to import them
-    python -c "import fastapi, uvicorn, requests" 2>nul
+    python -c "import fastapi, uvicorn, pydantic_settings, httpx" 2>nul
     if %ERRORLEVEL% NEQ 0 (
         echo   [INSTALL] Backend Python dependencies...
-        cd /d "%ROOT_DIR%\protv3-main\Biobackend"
-        pip install -r requirements.txt
+        pip install -r "%ROOT_DIR%\backend\requirements.txt"
         if %ERRORLEVEL% NEQ 0 (
-            echo   [WARNING] Some backend dependencies may have failed to install.
-            echo   Trying individual installs...
-            pip install fastapi uvicorn pydantic requests httpx
+            echo   [WARNING] Full requirements install failed — installing core packages...
+            pip install fastapi uvicorn pydantic pydantic-settings httpx
         )
-        cd /d "%ROOT_DIR%"
     ) else (
         echo   [OK] Backend Python dependencies found.
     )
@@ -121,27 +101,21 @@ echo.
 echo [LAUNCH] Starting all services...
 echo.
 
-REM --- 1. Landing Page (port 3000) ---
-echo   [1/3] Starting Landing Page on http://localhost:3000...
-start "BioStream Landing" cmd /k "cd /d "%ROOT_DIR%\biostream_landing-master" && echo ======================================== && echo   BioStream Landing Page && echo   URL: http://localhost:3000 && echo ======================================== && echo. && npm run dev"
-
-REM Wait a moment for the port to begin binding
-timeout /t 4 /nobreak >nul
-
-REM --- 2. Workspace App (port 3001) ---
-echo   [2/3] Starting BioStream Workspace on http://localhost:3001...
-start "BioStream Workspace" cmd /k "cd /d "%ROOT_DIR%\protv3-main\biostream" && echo ======================================== && echo   BioStream Workspace && echo   URL: http://localhost:3001 && echo ======================================== && echo. && npm run dev"
-
-timeout /t 4 /nobreak >nul
-
-REM --- 3. Backend API (port 8000) ---
+REM --- 1. Backend API (port 8000) — start first so the frontend can reach it ---
 if "!NO_BACKEND!"=="1" (
-    echo   [3/3] SKIPPED — Backend API (Python/pip not found).
+    echo   [1/2] SKIPPED — Backend API (Python/pip not found).
     echo         Install Python from https://python.org/ to enable the API.
 ) else (
-    echo   [3/3] Starting Backend API on http://localhost:8000...
-    start "BioStream Backend" cmd /k "cd /d "%ROOT_DIR%\protv3-main\Biobackend" && echo ======================================== && echo   BioStream Backend API && echo   URL: http://localhost:8000 && echo   Docs: http://localhost:8000/docs && echo ======================================== && echo. && python main.py"
+    echo   [1/2] Starting Backend API on http://localhost:8000...
+    start "Protheon Backend" cmd /k "cd /d "%ROOT_DIR%\backend" && echo ======================================== && echo   Protheon Backend API && echo   API: http://localhost:8000/api && echo   Docs: http://localhost:8000/api/docs && echo ======================================== && echo. && python -m uvicorn app.main:app --reload --port 8000"
 )
+
+timeout /t 4 /nobreak >nul
+
+REM --- 2. Frontend workspace (port 3000) ---
+echo   [2/2] Starting Protheon Workspace on http://localhost:3000...
+REM NEXT_PUBLIC_API_BASE_URL points the workspace at the backend above.
+start "Protheon Workspace" cmd /k "set NEXT_PUBLIC_API_BASE_URL=http://localhost:8000&& cd /d "%ROOT_DIR%" && echo ======================================== && echo   Protheon Workspace && echo   URL: http://localhost:3000 && echo ======================================== && echo. && npm run dev"
 
 timeout /t 2 /nobreak >nul
 
@@ -150,11 +124,10 @@ echo ========================================
 echo   All Services Started!
 echo ========================================
 echo.
-echo   Landing Page:  http://localhost:3000
-echo   BioStream App:  http://localhost:3001
+echo   Workspace:    http://localhost:3000
 if "!NO_BACKEND!"=="0" (
-    echo   Backend API:   http://localhost:8000
-    echo   API Docs:      http://localhost:8000/docs
+    echo   Backend API:  http://localhost:8000/api
+    echo   API Docs:     http://localhost:8000/api/docs
 )
 echo.
 echo   Open http://localhost:3000 in your browser to get started.

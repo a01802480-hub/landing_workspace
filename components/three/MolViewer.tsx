@@ -154,7 +154,7 @@ function makeColorFunc(model: StructureModel, mode: ColorMode, mutations: Mutati
   });
   const extent = Math.max(0.05, ...local.map((v) => Math.abs(v)));
   const mutated = new Set(mutations.map((m) => m.resi));
-  const chainSlot = new Map(model.chains.map((c, i) => [c, i] as const));
+  const chainSlot = new Map((model.chains ?? []).map((c, i) => [c, i] as const));
   const primary = model.primary_chain;
 
   return (atom: ViewerAtom): string => {
@@ -170,9 +170,9 @@ function makeColorFunc(model: StructureModel, mode: ColorMode, mutations: Mutati
     // Chain mode: the workspace's validated categorical palette, assigned by
     // the model's chain order (stable across renders) with a char-code
     // fallback for chains the payload did not list.
+    if (!chain) return GRAY;
     const slot = chainSlot.get(chain);
     if (slot !== undefined) return CHAIN_PALETTE[slot % CHAIN_PALETTE.length];
-    if (!chain) return GRAY;
     return CHAIN_PALETTE[chain.charCodeAt(0) % CHAIN_PALETTE.length];
   };
 }
