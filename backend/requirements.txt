@@ -1,0 +1,8 @@
+# Verified against Python 3.14 (2026-09-30): full test suite passes on these pins.
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+httpx==0.28.1
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+python-multipart==0.0.20
