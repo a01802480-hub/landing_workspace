@@ -22,5 +22,5 @@ Write-Host ""
 
 # Enter the project directory and execute the claude command to get started
 Write-Host "Starting Claude Code..." -ForegroundColor Yellow
-cd "C:\Users\Santiago Arizpe\OneDrive\Desktop\landing_workspace"  # <--- CHANGE THIS TO YOUR ACTUAL PROJECT FOLDER PATH
+cd "C:\Users\Santiago Arizpe\OneDrive\Desktop\Global-Innovation-Build-Challenge-V2"  # <--- CHANGE THIS TO YOUR ACTUAL PROJECT FOLDER PATH
 claude
