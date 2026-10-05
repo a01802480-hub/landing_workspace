@@ -7,7 +7,6 @@
  */
 import {
   Dna,
-  FlaskConical,
   GitCompareArrows,
   Orbit,
   Pill,
@@ -101,12 +100,7 @@ export const WORKSPACE_TOOLS: WorkspaceTool[] = [
     body: "Submit a substitution — get AlphaFold pLDDT, AlphaMissense pathogenicity and SIFT tolerance, each degrading gracefully on its own.",
     icon: Zap,
   },
-  {
-    href: "/workspace/lab",
-    label: "In silico lab",
-    title: "In silico lab",
-    note: "digest & gel · kinetics · dose-response",
-    body: "Restriction digests with agarose gel readouts, a live 2D Michaelis–Menten particle simulator, kinetics and dose–response — all CSV-exportable.",
-    icon: FlaskConical,
-  },
+  // The in-silico lab was retired (2026-10-04): its gel simulation now
+  // lives in the DNA workspace's Digest panel, where it verifies the
+  // edited construct. The /workspace/lab route stays dormant.
 ];

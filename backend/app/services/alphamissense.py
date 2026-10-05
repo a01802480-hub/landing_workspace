@@ -27,23 +27,35 @@ def _class_for(row: dict, alt: str) -> str | None:
     return None
 
 
-async def predict(uniprot_id: str, position: int, ref: str, alt: str) -> dict:
+async def fetch_row(uniprot_id: str, position: int) -> dict | None:
+    """The cached hotspotapi row for one residue.
+
+    One row carries the substitution classes for ALL 19 alternatives at
+    that position — the bulk scan fetches once per position and classifies
+    locally.  Returns None when the position is unavailable.
+    """
     key = f"{uniprot_id}:{position}"
     cached = _cache.get(key)
     if cached is not None:
-        row = cached
-    else:
-        s = get_settings()
-        async with httpx.AsyncClient(timeout=s.request_timeout_s) as client:
-            resp = await client.get(
-                f"{s.alphamissense_base_url}/hotspotapi",
-                params={"uid": uniprot_id, "resi": position},
-            )
-            if resp.status_code == 404:
-                return {"status": "unavailable", "detail": "Position not in the AlphaMissense table."}
-            resp.raise_for_status()
-            row = resp.json()
-        _cache.set(key, row)
+        return cached
+    s = get_settings()
+    async with httpx.AsyncClient(timeout=s.request_timeout_s) as client:
+        resp = await client.get(
+            f"{s.alphamissense_base_url}/hotspotapi",
+            params={"uid": uniprot_id, "resi": position},
+        )
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        row = resp.json()
+    _cache.set(key, row)
+    return row
+
+
+async def predict(uniprot_id: str, position: int, ref: str, alt: str) -> dict:
+    row = await fetch_row(uniprot_id, position)
+    if row is None:
+        return {"status": "unavailable", "detail": "Position not in the AlphaMissense table."}
     if row.get("aa") and row["aa"] != ref:
         return {
             "status": "unavailable",

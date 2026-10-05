@@ -15,13 +15,14 @@
  * properties sidebar, the feature table, the flow builder and the CRISPR
  * tools all read the same sequence + selection.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, TriangleAlert } from "lucide-react";
 import { apiValidated } from "@/lib/api";
 import { downloadText } from "@/lib/export";
 import { fmt } from "@/lib/format";
 import { gcPercent } from "@/lib/dna";
-import { registryToViewer, sliceRegion, meltingTemp } from "@/lib/sequences";
+import { registryToViewer, sliceRegion, meltingTemp, viewerToRegistry } from "@/lib/sequences";
+import { loadEnzymeCatalog, scanSites, type EnzymeDef } from "@/lib/enzymes";
 import { DnaRegistrySchema, type DnaRegistry } from "@/lib/validation";
 import { useWorkspace } from "@/lib/workspaceStore";
 import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
@@ -33,6 +34,10 @@ import { SeqVizViewer } from "@/components/workspace/dna/SeqVizViewer";
 import { SequenceProperties } from "@/components/workspace/dna/SequenceProperties";
 import { FeatureTable } from "@/components/workspace/dna/FeatureTable";
 import { FileDropzone } from "@/components/workspace/dna/FileDropzone";
+import { SequenceEditor } from "@/components/workspace/dna/SequenceEditor";
+import { HistoryPanel } from "@/components/workspace/dna/HistoryPanel";
+import { PlasmidBuilder } from "@/components/workspace/dna/PlasmidBuilder";
+import { DigestPanel } from "@/components/workspace/dna/DigestPanel";
 
 const PRESETS = [
   { acc: "J01749", label: "pBR322" },
@@ -43,9 +48,10 @@ const ACCESSION_RE = /^[A-Z]{1,4}_?\d{1,6}(\.\d+)?$/;
 
 type CanvasMode = "seqviz" | "classic";
 type SeqVizMode = "both" | "linear" | "circular";
+type RailPanel = "editor" | "history" | "plasmid" | "digest";
 
 export default function DnaPage() {
-  const { sequence, selection, setSequence, setSelection } = useWorkspace();
+  const { sequence, selection, setSequence, setSelection, hydrated } = useWorkspace();
   const [acc, setAcc] = useState("J01749");
   const [registry, setRegistry] = useState<DnaRegistry | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,8 +59,21 @@ export default function DnaPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("seqviz");
   const [seqvizMode, setSeqvizMode] = useState<SeqVizMode>("both");
+  const [railPanel, setRailPanel] = useState<RailPanel>("editor");
   const [copied, setCopied] = useState(false);
+  const [enzymes, setEnzymes] = useState<EnzymeDef[]>([]);
   const booted = useRef(false);
+
+  useEffect(() => {
+    loadEnzymeCatalog().then(setEnzymes).catch(() => {});
+  }, []);
+
+  // The classic maps always derive from the store — after any in-browser
+  // edit the backend registry would be stale.
+  const viewerRegistry = useMemo(() => {
+    if (!sequence) return null;
+    return viewerToRegistry(sequence, scanSites(sequence.seq, sequence.circular, enzymes));
+  }, [sequence, enzymes]);
 
   const load = useCallback(
     async (accession: string) => {
@@ -80,10 +99,12 @@ export default function DnaPage() {
   );
 
   useEffect(() => {
-    if (booted.current) return;
+    // Wait for hydration: the stored sequence is adopted in an effect, and
+    // auto-loading before that would race (and lose to) the restore.
+    if (booted.current || !hydrated) return;
     booted.current = true;
     if (!sequence) void load("J01749");
-  }, [load, sequence]);
+  }, [load, sequence, hydrated]);
 
   const copySequence = async () => {
     if (!sequence) return;
@@ -246,6 +267,7 @@ export default function DnaPage() {
             canvasMode === "seqviz" ? (
               <PanelBoundary title="SeqViz canvas" className="h-full">
                 <SeqVizViewer
+                  key={`${sequence.name}:${sequence.revision}`}
                   name={sequence.name}
                   seq={sequence.seq}
                   annotations={sequence.annotations}
@@ -255,7 +277,7 @@ export default function DnaPage() {
                   onSelection={setSelection}
                 />
               </PanelBoundary>
-            ) : registry ? (
+            ) : viewerRegistry ? (
               <SplitPane
                 direction="row"
                 storageKey="dna:split"
@@ -266,7 +288,7 @@ export default function DnaPage() {
                 first={
                   <PanelBoundary title="Linear sequence map" className="h-full">
                     <LinearMap
-                      registry={registry}
+                      registry={viewerRegistry}
                       zoom={60}
                       showComplement
                       showOrfs
@@ -281,7 +303,7 @@ export default function DnaPage() {
                 second={
                   <PanelBoundary title="Circular plasmid map" className="h-full">
                     <CircularMap
-                      registry={registry}
+                      registry={viewerRegistry}
                       selection={selection ? ({ start: selection.start, end: selection.end } satisfies DnaSelection) : null}
                       hoverBp={null}
                       focusBp={null}
@@ -293,7 +315,7 @@ export default function DnaPage() {
               />
             ) : (
               <p className="flex h-full items-center justify-center px-6 text-sm text-mist/60">
-                The classic maps need a backend registry record — load a GenBank accession first.
+                Load a sequence to see the classic maps.
               </p>
             )
           ) : (
@@ -303,10 +325,43 @@ export default function DnaPage() {
           )}
         </section>
 
-        <aside className="glass-card min-h-0 overflow-hidden">
-          <PanelBoundary title="Sequence properties" className="h-full">
-            <SequenceProperties />
-          </PanelBoundary>
+        <aside className="glass-card flex min-h-0 flex-col overflow-hidden">
+          <div className="max-h-60 shrink-0 overflow-y-auto border-b border-ink-950/5">
+            <PanelBoundary title="Sequence properties" className="h-full">
+              <SequenceProperties />
+            </PanelBoundary>
+          </div>
+          <div className="flex shrink-0 gap-1 border-b border-ink-950/5 px-2 py-1.5" role="tablist" aria-label="Sequence tools">
+            {(
+              [
+                { id: "editor", label: "Editor" },
+                { id: "history", label: "History" },
+                { id: "plasmid", label: "Plasmid" },
+                { id: "digest", label: "Digest" },
+              ] as { id: RailPanel; label: string }[]
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={railPanel === tab.id}
+                onClick={() => setRailPanel(tab.id)}
+                className={`flex-1 rounded-full border px-2 py-1 text-[10px] whitespace-nowrap transition-colors duration-300 ease-out ${
+                  railPanel === tab.id
+                    ? "border-glow-violet/50 bg-glow-violet/15 font-medium text-frost"
+                    : "border-transparent text-mist hover:bg-ink-950/5 hover:text-frost"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {railPanel === "editor" && <SequenceEditor />}
+            {railPanel === "history" && <HistoryPanel />}
+            {railPanel === "plasmid" && <PlasmidBuilder />}
+            {railPanel === "digest" && <DigestPanel />}
+          </div>
         </aside>
       </div>
 
@@ -337,9 +392,11 @@ export default function DnaPage() {
             <span className="text-mist/60">click a feature or drag on the map</span>
           )}
           <span className="ml-auto text-mist/60">
-            {sequence ? `${sequence.accession ?? sequence.name} · ${sequence.seq.length.toLocaleString()} bp · ${sequence.circular ? "circular" : "linear"} · ${sequence.source}` : ""}
+            {sequence
+              ? `${sequence.accession ?? sequence.name} · ${sequence.seq.length.toLocaleString()} bp · ${sequence.circular ? "circular" : "linear"} · ${sequence.source} · rev ${sequence.revision}`
+              : ""}
           </span>
-          <a href="/workspace/flows" className="inline-flex items-center gap-1 text-glow-violet/80 transition-colors duration-300 ease-out hover:text-frost">
+          <a href="/workspace#flows" className="inline-flex items-center gap-1 text-glow-violet/80 transition-colors duration-300 ease-out hover:text-frost">
             Flow builder <ArrowRight className="h-3 w-3" />
           </a>
         </div>

@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiRaw } from "@/lib/api";
 import { mulberry32 } from "@/lib/geometry";
+import { fnv1a32 } from "@/lib/audit";
 import { fmt } from "@/lib/format";
 
 interface Atom {
@@ -41,10 +42,20 @@ interface Atom {
 
 interface UnfoldingViewerProps {
   pdbId: string;
+  source?: "pdb" | "alphafold";
   /** 0..1 unfolded fraction (drives the morph + colors + RMSD). */
   fraction: number;
   /** For the readout chip. */
   solventLabel: string;
+  /** Per-solvent geometry parameters (backend SolventModel) — each
+   *  one deterministically changes the morph/colors, so different
+   *  solvents at the same fraction look different. */
+  solventKey?: string;
+  seed?: number;
+  collapse?: number;
+  coreAttack?: number;
+  dielectric?: number | null;
+  temperatureC?: number;
 }
 
 const COIL_STEP = 3.7; // Å per residue — Cα–Cα spacing in a random coil
@@ -116,7 +127,18 @@ function mix(a: string, b: string, t: number): string {
     .join("")}`;
 }
 
-export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingViewerProps) {
+export function UnfoldingViewer({
+  pdbId,
+  source = "pdb",
+  fraction,
+  solventLabel,
+  solventKey,
+  seed,
+  collapse,
+  coreAttack,
+  dielectric,
+  temperatureC,
+}: UnfoldingViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<View3D | null>(null);
   const atomsRef = useRef<Atom[]>([]);
@@ -160,7 +182,10 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
     setError(null);
     (async () => {
       try {
-        const text = await apiRaw<string>(`/structure/pdb/${pdbId}/file`, { timeoutMs: 120_000 });
+        const text = await apiRaw<string>(
+      source === "alphafold" ? `/structure/alphafold/${pdbId}/file` : `/structure/pdb/${pdbId}/file`,
+      { timeoutMs: 120_000 },
+    );
         if (cancelled) return;
         const atoms = parsePdb(text);
         const primaryChain = [...new Set(atoms.map((a) => a.chain))].sort(
@@ -169,8 +194,10 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
         const cas = atoms.filter((a) => a.isCA && a.chain === primaryChain).sort((a, b) => a.resi - b.resi);
         if (cas.length < 10) throw new Error("Structure has too few residues to unfold.");
 
-        // Deterministic random coil: smoothed random walk, seeded by length.
-        const rng = mulberry32(cas.length * 7919 + 17);
+        // Deterministic random coil: smoothed random walk, seeded by the
+        // solvent + structure identity (per-solvent unfolded reference).
+        const seedNum = parseInt(fnv1a32(`${pdbId}:${solventKey ?? "native"}:${seed ?? 7}`), 16) || 17;
+        const rng = mulberry32(seedNum);
         const dir: [number, number, number] = [1, 0, 0];
         const path: [number, number, number][] = [[0, 0, 0]];
         for (let i = 1; i < cas.length; i++) {
@@ -226,7 +253,7 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
     return () => {
       cancelled = true;
     };
-  }, [pdbId]);
+  }, [pdbId, solventKey, seed]);
 
   // ── Morph application (rAF-throttled) ───────────────────────────────────
   const applyMorph = useMemo(
@@ -252,7 +279,7 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
       }
       // Side chains follow their Cα; their native offset shrinks as the
       // chain unfolds (partially collapsed random-coil side chains).
-      const sideScale = 1 - 0.45 * fClamped;
+      const sideScale = 1 - (collapse ?? 0.45) * fClamped;
 
       viewer.removeAllModels();
       viewer.addModel(
@@ -278,7 +305,7 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
         if (seen.has(ca.resi)) continue;
         seen.add(ca.resi);
         const hyd = HYDROPHOBIC[ca.resn] ?? 0;
-        const t = Math.min(1, fClamped * hyd * 1.6);
+        const t = Math.min(1, fClamped * hyd * (coreAttack ?? 1.6));
         const color = mix(NATIVE_COLOR, EXPOSED_COLOR, t);
         viewer.setStyle({ chain: ca.chain, resi: ca.resi }, { cartoon: { color } });
       }
@@ -320,6 +347,12 @@ export function UnfoldingViewer({ pdbId, fraction, solventLabel }: UnfoldingView
         <span className="chip stat-num !py-0.5 text-[10px]">
           unfolded {unfoldedPct}% · {solventLabel}
         </span>
+        {typeof dielectric === "number" && (
+          <span className="chip stat-num !py-0.5 text-[10px]">ε {fmt(dielectric, 1)}</span>
+        )}
+        {typeof temperatureC === "number" && (
+          <span className="chip stat-num !py-0.5 text-[10px]">{temperatureC}°C</span>
+        )}
         <span className="chip !py-0.5 text-[10px]">
           <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: NATIVE_COLOR }} />
           surface

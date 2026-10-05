@@ -41,17 +41,31 @@ export function SplitPane({
   collapsed = false,
   className = "",
 }: SplitPaneProps) {
-  const [ratio, setRatio] = useState<number>(() => {
-    const stored = storageRead<number>(storageKey);
-    return typeof stored === "number" && Number.isFinite(stored)
-      ? CLAMP(stored, minFirst, 100 - minSecond)
-      : initial;
-  });
+  // Hydration-safe: the server renders `initial`; the persisted ratio is
+  // adopted in an effect after hydration (reading storage in the useState
+  // initializer would diverge the server/client trees).
+  const [ratio, setRatio] = useState<number>(initial);
+  const adopted = useRef(false);
+  const skipNextWrite = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
   useEffect(() => {
-    storageWrite(storageKey, ratio);
+    const stored = storageRead<number>(storageKey);
+    if (typeof stored === "number" && Number.isFinite(stored)) {
+      skipNextWrite.current = true;
+      setRatio(CLAMP(stored, minFirst, 100 - minSecond));
+    }
+    adopted.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (skipNextWrite.current) {
+      skipNextWrite.current = false;
+      return;
+    }
+    if (adopted.current) storageWrite(storageKey, ratio);
   }, [storageKey, ratio]);
 
   // While dragging: capture the pointer, freeze text selection.

@@ -19,12 +19,18 @@ export function SgRnaTable({
   onSelect,
   hoverId,
   onHover,
+  excludedIds,
+  onToggleExcluded,
 }: {
   guides: SgRna[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   hoverId?: string | null;
   onHover?: (id: string | null) => void;
+  /** Excluded guides stay listed (dimmed) but drop out of the map,
+   *  the wizard and the plasmid handoff. */
+  excludedIds?: Set<string>;
+  onToggleExcluded?: (id: string) => void;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: "score", asc: false });
 
@@ -48,6 +54,7 @@ export function SgRnaTable({
       <table className="w-full border-separate border-spacing-0 text-left text-xs">
         <thead className="sticky top-0 z-10">
           <tr className="bg-[#f5f3fb] text-[9px] tracking-wide text-mist/70 uppercase">
+            <th scope="col" className="w-8 px-2 py-2 font-medium" aria-label="Exclude guide" />
             <SortTh label="Rank" active={sort.key === "rank"} dir={sort.asc ? "↑" : "↓"} onClick={() => toggle("rank")} />
             <th scope="col" className="px-2 py-2 font-medium">Spacer · PAM</th>
             <th scope="col" className="px-2 py-2 font-medium">Position</th>
@@ -62,6 +69,8 @@ export function SgRnaTable({
           {rows.map((g) => {
             const selected = g.id === selectedId;
             const hovered = g.id === hoverId;
+            const excluded = excludedIds?.has(g.id) ?? false;
+            const manual = g.on_target_score < 0;
             return (
               <tr
                 key={g.id}
@@ -70,9 +79,30 @@ export function SgRnaTable({
                 onPointerLeave={() => onHover?.(null)}
                 aria-selected={selected}
                 className={`cursor-pointer border-t border-ink-950/5 transition-colors duration-300 ease-out ${
-                  selected ? "bg-glow-violet/10" : hovered ? "bg-ink-950/5" : "hover:bg-ink-950/5"
+                  excluded
+                    ? "opacity-40"
+                    : selected
+                      ? "bg-glow-violet/10"
+                      : hovered
+                        ? "bg-ink-950/5"
+                        : "hover:bg-ink-950/5"
                 }`}
               >
+                <td className="px-2 py-2">
+                  {onToggleExcluded && (
+                    <input
+                      type="checkbox"
+                      checked={excluded}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onToggleExcluded(g.id);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Exclude ${g.id}`}
+                      className="accent-glow-violet"
+                    />
+                  )}
+                </td>
                 <td className="stat-num px-3 py-2 font-semibold text-frost">{g.rank}</td>
                 <td className="px-2 py-2 font-mono text-[11px]">
                   <span className="text-frost/90">{g.sequence.slice(0, 10)}…</span>
@@ -90,10 +120,12 @@ export function SgRnaTable({
                     <span className="h-1.5 w-16 overflow-hidden rounded-full bg-ink-950/[0.08]">
                       <span
                         className="block h-full rounded-full bg-glow-violet"
-                        style={{ width: `${Math.min(100, g.on_target_score)}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, g.on_target_score))}%` }}
                       />
                     </span>
-                    <span className="stat-num w-10 text-mist/80">{g.on_target_score.toFixed(0)}</span>
+                    <span className="stat-num w-10 text-mist/80">
+                      {manual ? <span className="text-mist/60" title="manually entered — no score is fabricated">manual</span> : g.on_target_score.toFixed(0)}
+                    </span>
                   </span>
                 </td>
                 <td className="stat-num px-2 py-2">

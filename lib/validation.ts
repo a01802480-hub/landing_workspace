@@ -152,7 +152,7 @@ export const DnaRegistrySchema = z.object({
 export type DnaRegistry = z.infer<typeof DnaRegistrySchema>;
 
 export const DnaEnzymesSchema = z.object({
-  enzymes: z.array(z.object({ name: z.string() })),
+  enzymes: z.array(z.object({ name: z.string(), motif: z.string(), cut: z.number() })),
 });
 export type DnaEnzymesValidated = z.infer<typeof DnaEnzymesSchema>;
 
@@ -299,8 +299,10 @@ export const SgRnaJobStatusSchema = z.object({
   status: z.enum(["queued", "running", "done", "error"]),
   job_id: z.string(),
   tool: z.string(),
-  results: z.array(SgRnaSchema).optional(),
-  detail: z.string().optional(),
+  // The backend emits null for both fields while a job is queued —
+  // plain .optional() rejects null.
+  results: z.array(SgRnaSchema).nullable().optional(),
+  detail: z.string().nullable().optional(),
 });
 
 /* ── Nextflow pipelines ───────────────────────────────────────────────────── */
@@ -347,4 +349,155 @@ export const PipelineStatusSchema = z.object({
   run: PipelineRunSchema,
   steps: z.array(PipelineStepSchema).optional(),
   log_tail: z.array(z.string()).optional(),
+});
+
+/* ── DAG runs (flow builder → backend executor) ───────────────────────────── */
+
+const DagIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,60}$/);
+
+export const DagInputNodeSchema = z.object({
+  kind: z.literal("input"),
+  id: DagIdSchema,
+  source_kind: z.enum(["sequence", "fasta", "dataframe"]),
+  name: z.string().max(120),
+  sequence: z.string().max(10000).nullable().optional(),
+  dataframe: z
+    .object({ columns: z.array(z.string().max(200)).max(50), rows: z.array(z.array(z.string().max(200))).max(2000) })
+    .optional(),
+});
+
+export const DagToolNodeSchema = z.object({
+  kind: z.literal("tool"),
+  id: DagIdSchema,
+  tool: z.enum(["chopchop", "crispr_gate", "crispr_p"]),
+  gene_label: z.string().max(80).default(""),
+  organism: z.string().max(80).default(""),
+});
+
+export const DagComputeNodeSchema = z.object({
+  kind: z.literal("compute"),
+  id: DagIdSchema,
+  pipeline: z.string().regex(/^[a-z0-9-]{1,60}$/),
+  params: z.record(z.string(), z.string()),
+});
+
+export const DagNodeSchema = z.discriminatedUnion("kind", [DagInputNodeSchema, DagToolNodeSchema, DagComputeNodeSchema]);
+
+export const DagEdgeSchema = z.object({
+  id: DagIdSchema,
+  source: DagIdSchema,
+  target: DagIdSchema,
+});
+
+/** The payload the flow canvas sends to POST /dag/runs. */
+export const DagRunStartSchema = z.object({
+  nodes: z.array(DagNodeSchema).min(1).max(50),
+  edges: z.array(DagEdgeSchema).max(200),
+});
+export type DagRunStart = z.infer<typeof DagRunStartSchema>;
+
+export const DagRunStartResponseSchema = z.object({
+  run_id: z.string(),
+  status: z.string(),
+});
+
+export const DagNodeStatusSchema = z.object({
+  id: DagIdSchema,
+  kind: z.enum(["input", "tool", "compute"]),
+  label: z.string(),
+  status: z.enum(["idle", "queued", "running", "succeeded", "failed", "skipped"]),
+  note: z.string().optional(),
+  results_count: z.number().optional(),
+});
+
+export const DagRunStatusSchema = z.object({
+  run: z.object({
+    run_id: z.string(),
+    status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]),
+    created_at: z.string(),
+  }),
+  nodes: z.array(DagNodeStatusSchema).optional(),
+});
+export type DagRunStatus = z.infer<typeof DagRunStatusSchema>;
+
+export const DagRunSummarySchema = z.object({
+  run_id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  source: z.string(),
+  created_at: z.string(),
+});
+export type DagRunSummary = z.infer<typeof DagRunSummarySchema>;
+
+export const DagRunsListSchema = z.object({
+  runs: z.array(DagRunSummarySchema),
+});
+
+/** One SSE event from /dag/runs/{id}/stream — strict envelope, permissive
+ *  `data` (unknown event types are dropped by the client). */
+export const DagEventSchema = z.object({
+  seq: z.number(),
+  ts: z.string(),
+  type: z.enum([
+    "run_started",
+    "node_started",
+    "node_progress",
+    "node_succeeded",
+    "node_failed",
+    "node_skipped",
+    "step_update",
+    "log",
+    "run_succeeded",
+    "run_failed",
+    "run_cancelled",
+  ]),
+  node_id: z.string().nullable().optional(),
+  message: z.string(),
+  data: z.record(z.string(), z.unknown()).optional(),
+});
+export type DagEvent = z.infer<typeof DagEventSchema>;
+
+/* ── Variant bulk scan ────────────────────────────────────────────────────── */
+
+const VariantScanSourceSchema = z.object({
+  status: z.enum(["ok", "unavailable", "timeout"]),
+  detail: z.string().optional(),
+});
+
+export const VariantScanStartSchema = z.object({
+  uniprot_id: z.string(),
+  start: z.number().int().positive().optional(),
+  end: z.number().int().positive().optional(),
+});
+export type VariantScanStart = z.infer<typeof VariantScanStartSchema>;
+
+export const VariantScanPositionSchema = z.object({
+  position: z.number().int().positive(),
+  ref: z.string().nullable().optional(),
+  plddt: VariantScanSourceSchema.extend({ plddt: z.number().optional(), mean_model_plddt: z.number().optional() }).nullable().optional(),
+  alphamissense: VariantScanSourceSchema.extend({
+    mean: z.number().optional(),
+    substitutions: z.array(z.object({ alt: z.string(), class: z.string() })).optional(),
+  }).nullable().optional(),
+  sift: VariantScanSourceSchema.extend({
+    sift: z.object({ score: z.number().optional(), prediction: z.string().nullable().optional() }).nullable().optional(),
+    polyphen: z.object({ score: z.number().optional(), prediction: z.string().nullable().optional() }).nullable().optional(),
+  }).nullable().optional(),
+});
+export type VariantScanPosition = z.infer<typeof VariantScanPositionSchema>;
+
+export const VariantScanStatusSchema = z.object({
+  status: z.enum(["queued", "running", "done", "error"]),
+  job_id: z.string(),
+  uniprot_id: z.string(),
+  progress: z.object({ scanned: z.number(), total: z.number() }),
+  vep_applied: z.boolean(),
+  positions: z.array(VariantScanPositionSchema).optional(),
+  detail: z.string().nullable().optional(),
+});
+export type VariantScanStatus = z.infer<typeof VariantScanStatusSchema>;
+
+export const VariantScanStartResponseSchema = z.object({
+  job_id: z.string(),
+  status: z.string(),
 });

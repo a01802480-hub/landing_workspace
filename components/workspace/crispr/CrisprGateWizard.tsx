@@ -10,6 +10,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, Download, Workflow } from "lucide-react";
 import { downloadText } from "@/lib/export";
+import { useIde } from "@/lib/ide";
 import type { SgRna } from "@/lib/validation";
 
 export interface KnockoutPlan {
@@ -44,6 +45,7 @@ export function CrisprGateWizard({
   disabled?: boolean;
 }) {
   const [plan, setPlan] = useState<KnockoutPlan | null>(null);
+  const { selectTab } = useIde();
   const selected = guides.find((g) => g.id === selectedId) ?? null;
 
   const buildPlan = () => {
@@ -111,7 +113,17 @@ export function CrisprGateWizard({
               <Download className="h-3.5 w-3.5" /> JSON
             </button>
             <Link
-              href={`/workspace/pipelines?run=crispr-knockout&guides=${encodeURIComponent(plan.guide_id)}&target=${encodeURIComponent(geneLabel || "target")}`}
+              href={{
+                pathname: "/workspace",
+                query: {
+                  run: "crispr-knockout",
+                  guides: plan.guide_id,
+                  target: geneLabel || "target",
+                },
+                hash: "#pipelines",
+              }}
+              scroll={false}
+              onClick={() => selectTab("pipelines")}
               className="btn-ghost inline-flex items-center gap-1.5 !px-3 !py-1.5 text-xs"
             >
               <Workflow className="h-3.5 w-3.5" /> Run in Nextflow

@@ -1,85 +1,93 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
-import { apiValidated } from "@/lib/api";
-import { CatalogSchema } from "@/lib/validation";
-import { WORKSPACE_TOOLS } from "@/lib/tools";
-import { FloatIn } from "@/components/antigravity/FloatIn";
-import { GlassCard } from "@/components/antigravity/GlassCard";
-import { IsometricTilt } from "@/components/antigravity/IsometricTilt";
-import { HealthChip } from "@/components/workspace/shell/HealthChip";
-import { StatTile } from "@/components/workspace/panels/StatTile";
-import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
+/**
+ * Workspace IDE — the unified, zero-reload tool host.
+ *
+ * Every tool is a keep-alive tab: its page component mounts on first
+ * visit and stays mounted forever (inactive tabs are display:none, never
+ * unmounted), so toggling Sequence Map ⇄ Workflow Builder is instant and
+ * preserves selection, viewer mode and canvas state. Tool pages are
+ * dynamic-imported (ssr:false — they render canvases/webgl and are
+ * client-only by design) and each sits under its own Suspense boundary:
+ * `crispr` and `pipelines` call useSearchParams(), which requires a
+ * boundary under static export or `next build` fails.
+ *
+ * Split mode renders the dna and flows pages side-by-side in the shared
+ * SplitPane (ratio persisted under "ide:split").
+ */
+import { Suspense, useEffect, useState, type ComponentType } from "react";
+import dynamic from "next/dynamic";
+import { useIde, type WorkspaceTabId } from "@/lib/ide";
+import { OverviewTab } from "@/components/workspace/ide/OverviewTab";
+import { PanelSkeleton } from "@/components/workspace/panels/PanelSkeleton";
+import { SplitPane } from "@/components/workspace/shell/SplitPane";
+import { ToolTabs } from "@/components/workspace/shell/ToolTabs";
 
-export default function WorkspaceHub() {
-  const [structureCount, setStructureCount] = useState<number | null>(null);
+type ToolTabId = Exclude<WorkspaceTabId, "overview">;
+
+const TOOL_VIEWS: Record<ToolTabId, ComponentType> = {
+  structure: dynamic(() => import("./structure/page"), { ssr: false }),
+  dna: dynamic(() => import("./dna/page"), { ssr: false }),
+  crispr: dynamic(() => import("./crispr/page"), { ssr: false }),
+  pipelines: dynamic(() => import("./pipelines/page"), { ssr: false }),
+  flows: dynamic(() => import("./flows/page"), { ssr: false }),
+  interactions: dynamic(() => import("./interactions/page"), { ssr: false }),
+  comparative: dynamic(() => import("./comparative/page"), { ssr: false }),
+  variants: dynamic(() => import("./variants/page"), { ssr: false }),
+};
+
+function TabPanel({ id, active }: { id: WorkspaceTabId; active: boolean }) {
+  const View = id === "overview" ? OverviewTab : TOOL_VIEWS[id as ToolTabId];
+  return (
+    <div
+      id={`tab-${id}`}
+      role="tabpanel"
+      aria-hidden={!active}
+      className={active ? "h-full min-h-0" : "hidden"}
+    >
+      <Suspense fallback={<PanelSkeleton variant="viewer" caption="Mounting tool…" />}>
+        <View />
+      </Suspense>
+    </div>
+  );
+}
+
+export default function WorkspaceIde() {
+  const { activeTab, splitView } = useIde();
+  // Keep-alive set: a tab stays mounted forever once first visited.
+  const [mounted, setMounted] = useState<WorkspaceTabId[]>(["overview"]);
 
   useEffect(() => {
-    let cancelled = false;
-    apiValidated("/structure/catalog", CatalogSchema)
-      .then((r) => {
-        if (!cancelled) setStructureCount(r.entries.length);
-      })
-      .catch(() => {
-        if (!cancelled) setStructureCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setMounted((prev) => (prev.includes(activeTab) ? prev : [...prev, activeTab]));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!splitView) return;
+    setMounted((prev) => {
+      if (prev.includes("dna") && prev.includes("flows")) return prev;
+      return [...new Set<WorkspaceTabId>([...prev, "dna", "flows"])];
+    });
+  }, [splitView]);
 
   return (
-    <ToolScroll>
-      <FloatIn className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-frost">Workspace</h1>
-          <p className="mt-2 max-w-xl text-mist">
-            Every tool is a floating panel over the same clinical void. Pick a lens, or start
-            from the challenge structures below.
-          </p>
-        </div>
-        <HealthChip />
-      </FloatIn>
-
-      {/* KPI blocks — the shared StatTile, one block style for every dashboard. */}
-      <FloatIn stagger={0.1} className="mb-8 grid gap-4 sm:grid-cols-3">
-        <StatTile
-          label="Challenge structures"
-          value={structureCount ?? "…"}
-          caption="LIG1 · RuBisCO presets, one click away"
-        />
-        <StatTile
-          label="Analysis channels"
-          value={WORKSPACE_TOOLS.length}
-          caption="structure · DNA · CRISPR · pipelines · interactions · comparative · variants · lab"
-        />
-        <StatTile
-          label="Upstream sources"
-          value="7"
-          caption="AlphaFold DB · RCSB · UniProt · Ensembl · InterPro · NCBI Entrez · AlphaMissense/VEP"
-        />
-      </FloatIn>
-
-      <FloatIn stagger={0.1} className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {WORKSPACE_TOOLS.map((t) => (
-          <IsometricTilt key={t.href} className="h-full">
-            <Link href={t.href} className="block h-full">
-              <GlassCard className="flex h-full flex-col p-7">
-                <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-ink-950/10 bg-glow-violet/10 text-glow-violet" aria-hidden>
-                  <t.icon className="h-5 w-5" strokeWidth={1.8} />
-                </span>
-                <h2 className="text-lg font-semibold text-frost">{t.title}</h2>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-mist">{t.body}</p>
-                <span className="mt-5 inline-flex items-center gap-1.5 text-sm text-glow-violet/90">
-                  Open <ArrowRight className="h-3.5 w-3.5" />
-                </span>
-              </GlassCard>
-            </Link>
-          </IsometricTilt>
-        ))}
-      </FloatIn>
-    </ToolScroll>
+    <div className="flex h-full min-h-0 flex-col">
+      <ToolTabs />
+      <div className="min-h-0 flex-1">
+        {splitView ? (
+          <SplitPane
+            direction="row"
+            storageKey="ide:split"
+            initial={50}
+            minFirst={30}
+            minSecond={30}
+            className="h-full"
+            first={<TabPanel id="dna" active />}
+            second={<TabPanel id="flows" active />}
+          />
+        ) : (
+          mounted.map((id) => <TabPanel key={id} id={id} active={id === activeTab} />)
+        )}
+      </div>
+    </div>
   );
 }

@@ -18,15 +18,26 @@ def make_app(**overrides) -> TestClient:
     return TestClient(create_app(Settings(**kwargs)))
 
 
+def _post(client: TestClient, path: str, payload: dict):
+    """POST with the CSRF double-submit token (a safe GET plants the cookie)."""
+    if not client.cookies.get("protheon_csrf"):
+        client.get("/api/health")
+    return client.post(path, json=payload, headers={"X-CSRF-Token": client.cookies.get("protheon_csrf")})
+
+
 # ── Scanner core ────────────────────────────────────────────────────────────
 
 def _target() -> str:
     """300-nt target with a guaranteed PAM on each strand:
     AGG at index 25 (plus-strand guide) and CCT at index 160 (its reverse
-    complement carries NGG, so the minus-strand scan finds a guide too)."""
+    complement carries NGG, so the minus-strand scan finds a guide too).
+    Index 175 is flipped to break the ACGT periodicity inside the
+    minus-strand spacer window — in the pure tandem repeat the two spacers
+    are identical and the dedupe keeps only the first (plus) one."""
     seq = list("ACGT" * 75)
     seq[25:28] = list("AGG")
     seq[160:163] = list("CCT")
+    seq[175] = "C"
     return "".join(seq)
 
 
@@ -76,9 +87,10 @@ def test_unenriched_guides_carry_honest_note() -> None:
 def test_design_job_roundtrip() -> None:
     client = make_app()
     seq = "G" * 300
-    started = client.post(
+    started = _post(
+        client,
         "/api/crispr/design",
-        json={"tool": "crispr_gate", "sequence": seq, "gene_label": "TEST", "organism": "Homo sapiens"},
+        {"tool": "crispr_gate", "sequence": seq, "gene_label": "TEST", "organism": "Homo sapiens"},
     )
     assert started.status_code == 200, started.text
     job_id = started.json()["job_id"]
@@ -97,7 +109,7 @@ def test_design_rejects_hostile_payloads() -> None:
         {"tool": "chopchop", "sequence": "A" * 100001},
         {"tool": "other_tool", "sequence": "G" * 300},
     ):
-        resp = client.post("/api/crispr/design", json=payload)
+        resp = _post(client, "/api/crispr/design", payload)
         assert resp.status_code == 422, payload
 
 
@@ -107,9 +119,10 @@ def test_design_region_bridge() -> None:
     client = make_app()
     seq = _target()
     region = (100, 250)
-    started = client.post(
+    started = _post(
+        client,
         "/api/crispr/design",
-        json={"tool": "crispr_gate", "sequence": seq, "region_start": region[0], "region_end": region[1]},
+        {"tool": "crispr_gate", "sequence": seq, "region_start": region[0], "region_end": region[1]},
     )
     assert started.status_code == 200, started.text
     body = client.get(f"/api/crispr/design/{started.json()['job_id']}").json()
@@ -123,10 +136,7 @@ def test_design_region_bridge() -> None:
         {"region_start": 200, "region_end": 100},
         {"region_start": 1, "region_end": len(seq) + 1},
     ):
-        resp = client.post(
-            "/api/crispr/design",
-            json={"tool": "chopchop", "sequence": seq, **region_payload},
-        )
+        resp = _post(client, "/api/crispr/design", {"tool": "chopchop", "sequence": seq, **region_payload})
         assert resp.status_code == 422, region_payload
 
 
@@ -139,7 +149,7 @@ def test_nextflow_demo_run_reaches_success() -> None:
     names = [p["name"] for p in catalogs.json()["pipelines"]]
     assert "crispr-knockout" in names
 
-    launched = client.post("/api/nextflow/runs", json={"pipeline": "crispr-knockout", "params": {"target": "BRCA1"}})
+    launched = _post(client, "/api/nextflow/runs", {"pipeline": "crispr-knockout", "params": {"target": "BRCA1"}})
     assert launched.status_code == 200
     run_id = launched.json()["run_id"]
 
@@ -155,9 +165,10 @@ def test_nextflow_demo_run_reaches_success() -> None:
 
 def test_nextflow_demo_failure_path() -> None:
     client = make_app()
-    launched = client.post(
+    launched = _post(
+        client,
         "/api/nextflow/runs",
-        json={"pipeline": "crispr-knockout", "params": {"simulate_failure": "true"}},
+        {"pipeline": "crispr-knockout", "params": {"simulate_failure": "true"}},
     )
     run_id = launched.json()["run_id"]
     nextflow._runs[run_id]["started_at"] -= 1_000

@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from .config import Settings, get_settings
-from .routes import alignment, biophysics, comparative, crispr, dna, ingest, nextflow, structure, variants
+from .routes import alignment, biophysics, comparative, crispr, dag, dna, ingest, nextflow, structure, variants
 from .security import CsrfProtectMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 
 
@@ -55,7 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(CsrfProtectMiddleware)
     app.add_middleware(RateLimitMiddleware, per_minute=s.rate_limit_per_minute, trust_proxy=s.trust_proxy)
 
-    for module in (alignment, biophysics, comparative, crispr, dna, ingest, nextflow, structure, variants):
+    for module in (alignment, biophysics, comparative, crispr, dag, dna, ingest, nextflow, structure, variants):
         app.include_router(module.router, prefix="/api")
 
     @app.get("/api/health")

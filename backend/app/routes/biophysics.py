@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from ..cache import TTLCache
@@ -76,6 +76,15 @@ async def dock(payload: DockRequest) -> dict:
 
 
 @router.get("/biophysics/solvent/{solvent}")
-async def solvent(solvent: str = Path(pattern=r"^(ethanol|urea|guanidinium)$")) -> dict:
-    """Dielectric-constant and denaturation curves for a solvent (0–8 M)."""
-    return biophysics.solvent_curve(solvent)
+async def solvent(
+    solvent: str = Path(pattern=r"^[a-z0-9_]{1,20}$"),
+    temperature_c: float = Query(25.0, ge=0.0, le=100.0),
+) -> dict:
+    """Dielectric-constant and denaturation curves for a solvent.
+
+    The name is validated against the solvent library (404 for unknowns);
+    `temperature_c` shifts the midpoint for molar solvents (dCm/dT coupling).
+    """
+    if solvent not in biophysics.SOLVENTS:
+        raise HTTPException(status_code=404, detail="Unknown solvent.")
+    return biophysics.solvent_curve(solvent, temperature_c)

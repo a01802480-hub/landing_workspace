@@ -3,15 +3,19 @@
 /**
  * FlowCanvas — the ProtoFlow-style visual pipeline builder (@xyflow/react).
  *
- * One "Sequence Node" feeds tool nodes (Run CHOPCHOP / CRISPR-GATE /
- * CRISPR-P 2.0 / Nextflow Pipeline) through edges. The sequence node reads
- * the shared workspace store — so the canvas always operates on the same
- * sequence + selection as the DNA viewer. Dragging from the palette drops
- * new nodes at the pointer; the canvas persists to localStorage
- * (best-effort, shape-guarded).
+ * Unlimited nodes of three kinds: input (sequence / FASTA / dataframe —
+ * the sequence variant without a resourceId reads the live workspace
+ * store), tool (CHOPCHOP / CRISPR-GATE / CRISPR-P 2.0) and compute
+ * (Nextflow pipeline). Nodes arrive from three sources: the palette
+ * (DROP_MIME), the resource sidebar (RESOURCE_DROP_MIME — a resource id
+ * becomes an input node), and OS file drops (parsed into resources).
+ *
+ * The canvas is controlled: the flows page owns nodes/edges (so it can
+ * serialize them into the DAG payload) and passes `nodeStatus` — live
+ * run statuses folded from SSE events — which is rendered as a badge on
+ * every node but never persisted.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,61 +25,105 @@ import {
   MiniMap,
   Handle,
   Position,
-  addEdge,
-  useNodesState,
-  useEdgesState,
   useReactFlow,
   type Connection,
   type NodeProps,
   type NodeTypes,
+  type OnNodesChange,
+  type OnEdgesChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Orbit, Scissors, Workflow } from "lucide-react";
-import { TOOL_NODE_CATALOG, defaultFlowEdges, defaultFlowNodes, type FlowEdge, type FlowNode, type FlowToolId } from "@/lib/flows";
-import { storageRead, storageWrite } from "@/lib/persistence";
+import { FileText, Orbit, Scissors, Table2, Workflow } from "lucide-react";
+import {
+  TOOL_NODE_CATALOG,
+  toolCatalogEntry,
+  newFlowNodeId,
+  DEFAULT_PIPELINE,
+  type DagNodeStatus,
+  type FlowEdge,
+  type FlowNode,
+  type FlowToolId,
+  type InputSourceKind,
+} from "@/lib/flows";
+import { RESOURCE_DROP_MIME, parseFileToResources, type Resource } from "@/lib/resources";
 import { useWorkspace } from "@/lib/workspaceStore";
 import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
+import { StatusDot } from "@/components/workspace/shell/StatusDot";
 
+/** Palette drags: "input:sequence" | "input:fasta" | "input:dataframe" |
+ *  "tool:<id>" | "compute". */
 export const DROP_MIME = "application/protheon-flow";
+
+const STATUS_META: Record<DagNodeStatus, { label: string; dot: string }> = {
+  idle: { label: "", dot: "" },
+  queued: { label: "queued", dot: "bg-mist" },
+  running: { label: "running", dot: "bg-glow-violet status-dot-pulse" },
+  succeeded: { label: "done", dot: "bg-[#0ca30c]" },
+  failed: { label: "failed", dot: "bg-[#c13b3b]" },
+  skipped: { label: "skipped", dot: "bg-mist/50" },
+};
+
+function StatusBadge({ status }: { status: DagNodeStatus }) {
+  const meta = STATUS_META[status];
+  if (!meta.label) return null;
+  return (
+    <span className="chip ml-auto !py-0.5 text-[9px]">
+      <StatusDot className={meta.dot} />
+      {meta.label}
+    </span>
+  );
+}
 
 /* ── Custom nodes ─────────────────────────────────────────────────────────── */
 
-function SequenceNodeView({ data }: NodeProps<FlowNode>) {
-  const { sequence, selection } = useWorkspace();
+const INPUT_ICONS: Record<InputSourceKind, typeof Orbit> = {
+  sequence: Orbit,
+  fasta: FileText,
+  dataframe: Table2,
+};
+
+const INPUT_LABELS: Record<InputSourceKind, string> = {
+  sequence: "Sequence",
+  fasta: "FASTA file",
+  dataframe: "Dataframe",
+};
+
+function InputNodeView({ data }: NodeProps<FlowNode>) {
+  const { sequence, resources } = useWorkspace();
+  const d = data as { sourceKind: InputSourceKind; resourceId?: string; status?: DagNodeStatus };
+  const Icon = INPUT_ICONS[d.sourceKind];
+  const resource: Resource | undefined = d.resourceId
+    ? resources.find((r) => r.id === d.resourceId)
+    : undefined;
+  const meta = resource
+    ? resource.kind === "dataframe"
+      ? `${resource.dataframe ? resource.dataframe.rows.length.toLocaleString() : "?"} rows`
+      : `${resource.payload ? `${resource.payload.seq.length.toLocaleString()} bp` : "session-only"}`
+    : d.sourceKind === "sequence"
+      ? sequence
+        ? `${sequence.seq.length.toLocaleString()} bp${sequence.circular ? " · circular" : ""}`
+        : "no sequence loaded"
+      : "unset";
+  const name =
+    resource?.name ?? (d.sourceKind === "sequence" ? (sequence ? sequence.name : "Workspace sequence") : "Pick a resource");
+
   return (
     <div className="w-56 rounded-xl border border-glow-violet/40 bg-white/90 shadow-lg backdrop-blur-md">
       <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-glow-violet" />
       <div className="flex items-center gap-2 border-b border-ink-950/5 px-3 py-2">
         <span aria-hidden className="text-glow-violet">
-          <Orbit className="h-4 w-4" />
+          <Icon className="h-4 w-4" />
         </span>
-        <span className="text-xs font-semibold text-frost">Sequence Node</span>
+        <span className="text-xs font-semibold text-frost">{INPUT_LABELS[d.sourceKind]} Input</span>
+        <StatusBadge status={d.status ?? "idle"} />
       </div>
       <div className="px-3 py-2">
-        {sequence ? (
-          <>
-            <p className="truncate text-xs text-frost/90" title={sequence.name}>
-              {sequence.name}
-            </p>
-            <p className="stat-num mt-0.5 text-[10px] text-mist/70">
-              {sequence.seq.length.toLocaleString()} bp · {sequence.circular ? "circular" : "linear"}
-            </p>
-            {selection ? (
-              <p className="chip mt-1.5 !py-0.5 text-[9px]">
-                selection {selection.start.toLocaleString()}–{selection.end.toLocaleString()}
-              </p>
-            ) : (
-              <p className="mt-1 text-[9px] text-mist/60">no selection — tools run on the whole sequence</p>
-            )}
-          </>
-        ) : (
-          <p className="text-xs leading-relaxed text-mist/70">
-            No sequence loaded — open the{" "}
-            <Link href="/workspace/dna" className="text-glow-violet underline-offset-2 hover:underline">
-              DNA workspace
-            </Link>{" "}
-            and import one.
-          </p>
+        <p className="truncate text-xs text-frost/90" title={name}>
+          {name}
+        </p>
+        <p className="stat-num mt-0.5 text-[10px] text-mist/70">{meta}</p>
+        {d.sourceKind === "sequence" && !resource && sequence && (
+          <p className="mt-1 text-[9px] text-mist/60">live workspace sequence — tools receive the current selection</p>
         )}
       </div>
     </div>
@@ -86,12 +134,11 @@ const TOOL_ICONS: Record<FlowToolId, typeof Scissors> = {
   chopchop: Scissors,
   crispr_gate: Scissors,
   crispr_p: Scissors,
-  nextflow: Workflow,
 };
 
 function ToolNodeView({ data }: NodeProps<FlowNode>) {
-  const d = data as { tool: FlowToolId; params: Record<string, string> };
-  const meta = TOOL_NODE_CATALOG.find((t) => t.tool === d.tool);
+  const d = data as { tool: FlowToolId; params: Record<string, string>; status?: DagNodeStatus };
+  const meta = toolCatalogEntry(d.tool);
   const Icon = TOOL_ICONS[d.tool];
   const paramSummary = Object.values(d.params).filter(Boolean).join(" · ");
   return (
@@ -103,6 +150,7 @@ function ToolNodeView({ data }: NodeProps<FlowNode>) {
           <Icon className="h-4 w-4" />
         </span>
         <span className="text-xs font-semibold text-frost">{meta?.label ?? d.tool}</span>
+        <StatusBadge status={d.status ?? "idle"} />
       </div>
       <div className="px-3 py-2">
         <p className="text-[10px] leading-relaxed text-mist/70">{meta?.hint}</p>
@@ -116,95 +164,178 @@ function ToolNodeView({ data }: NodeProps<FlowNode>) {
   );
 }
 
+function ComputeNodeView({ data }: NodeProps<FlowNode>) {
+  const d = data as { pipeline: string; params: Record<string, string>; status?: DagNodeStatus };
+  const paramSummary = Object.values(d.params).filter(Boolean).join(" · ");
+  return (
+    <div className="w-56 rounded-xl border border-ink-950/15 bg-white/90 shadow-lg backdrop-blur-md">
+      <Handle type="target" position={Position.Left} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-mist" />
+      <Handle type="source" position={Position.Right} className="!h-2.5 !w-2.5 !border-2 !border-white !bg-mist" />
+      <div className="flex items-center gap-2 border-b border-ink-950/5 px-3 py-2">
+        <span aria-hidden className="text-glow-violet">
+          <Workflow className="h-4 w-4" />
+        </span>
+        <span className="text-xs font-semibold text-frost">Nextflow Pipeline</span>
+        <StatusBadge status={d.status ?? "idle"} />
+      </div>
+      <div className="px-3 py-2">
+        <p className="truncate font-mono text-xs text-frost/90" title={d.pipeline}>
+          {d.pipeline}
+        </p>
+        {paramSummary && (
+          <p className="mt-1 truncate text-[9px] text-mist/60" title={paramSummary}>
+            {paramSummary}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const nodeTypes = {
-  sequence: SequenceNodeView,
+  input: InputNodeView,
   tool: ToolNodeView,
+  compute: ComputeNodeView,
 } as unknown as NodeTypes;
 
 /* ── Canvas ───────────────────────────────────────────────────────────────── */
 
-const STORE_KEY = "flows:canvas";
-
-function restoreCanvas(): { nodes: FlowNode[]; edges: FlowEdge[] } | null {
-  try {
-    const stored = storageRead<{ nodes: FlowNode[]; edges: FlowEdge[] }>(STORE_KEY);
-    if (!stored || !Array.isArray(stored.nodes) || !Array.isArray(stored.edges)) return null;
-    // Position/types re-checked — stored canvas data is untrusted input.
-    if (!stored.nodes.every((n) => typeof n.id === "string" && (n.type === "sequence" || n.type === "tool"))) return null;
-    return stored;
-  } catch {
-    return null;
-  }
-}
-
 function CanvasBody({
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
+  onConnect,
   onSelectNode,
-  paramUpdates,
+  nodeStatus,
+  setNodes,
+  onCanvasError,
 }: {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  onNodesChange: OnNodesChange<FlowNode>;
+  onEdgesChange: OnEdgesChange<FlowEdge>;
+  onConnect: (connection: Connection) => void;
   onSelectNode: (id: string | null) => void;
-  /** Inspector edits keyed by node id — applied to tool nodes in place. */
-  paramUpdates?: Record<string, Record<string, string>>;
+  nodeStatus?: Record<string, DagNodeStatus>;
+  setNodes: Dispatch<SetStateAction<FlowNode[]>>;
+  onCanvasError: (message: string) => void;
 }) {
-  const restored = useMemo(restoreCanvas, []);
-  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(restored?.nodes ?? defaultFlowNodes());
-  const [edges, setEdges, onEdgesChange] = useEdgesState<FlowEdge>(restored?.edges ?? defaultFlowEdges());
   const { screenToFlowPosition } = useReactFlow();
-  const saved = useRef(false);
+  const { resources, addResource } = useWorkspace();
 
-  useEffect(() => {
-    // Persist after the first change pass (skip the initial mount write).
-    if (!saved.current) {
-      saved.current = true;
-      return;
-    }
-    storageWrite(STORE_KEY, { nodes, edges });
-  }, [nodes, edges]);
+  // Live statuses overlay the persisted node data — never written back.
+  const displayNodes = useMemo(
+    () =>
+      nodes.map((n) => ({
+        ...n,
+        data: { ...n.data, status: nodeStatus?.[n.id] ?? (n.data.status ?? "idle") },
+      })),
+    [nodes, nodeStatus],
+  );
 
-  // Inspector edits → node params, in place (never remounts the node).
-  useEffect(() => {
-    if (!paramUpdates || Object.keys(paramUpdates).length === 0) return;
-    setNodes((nds) =>
-      nds.map((n) =>
-        n.type === "tool" && paramUpdates[n.id] ? { ...n, data: { ...n.data, params: paramUpdates[n.id] } } : n,
-      ),
-    );
-  }, [paramUpdates, setNodes]);
+  const addInputNode = useCallback(
+    (position: { x: number; y: number }, sourceKind: InputSourceKind, resourceId?: string) => {
+      setNodes((prev) => [
+        ...prev,
+        { id: newFlowNodeId(), type: "input", position, data: { kind: "input", sourceKind, resourceId } },
+      ]);
+    },
+    [setNodes],
+  );
 
-  const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)),
-    [setEdges],
+  const addToolNode = useCallback(
+    (position: { x: number; y: number }, tool: FlowToolId) => {
+      const meta = TOOL_NODE_CATALOG.find((t) => t.tool === tool);
+      if (!meta) return;
+      setNodes((prev) => [
+        ...prev,
+        {
+          id: newFlowNodeId(),
+          type: "tool",
+          position,
+          data: {
+            kind: "tool",
+            tool,
+            params: Object.fromEntries(meta.params.map((p) => [p.key, ""])),
+          },
+        },
+      ]);
+    },
+    [setNodes],
+  );
+
+  const addComputeNode = useCallback(
+    (position: { x: number; y: number }) => {
+      setNodes((prev) => [
+        ...prev,
+        {
+          id: newFlowNodeId(),
+          type: "compute",
+          position,
+          data: { kind: "compute", pipeline: DEFAULT_PIPELINE, params: {} },
+        },
+      ]);
+    },
+    [setNodes],
+  );
+
+  const onDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+      // OS file drop → parse into resources → input nodes.
+      const files = Array.from(e.dataTransfer.files ?? []);
+      if (files.length > 0) {
+        for (const file of files) {
+          try {
+            const { resources: added, sequence } = await parseFileToResources(file);
+            for (const r of added) addResource(r);
+            const first = added[0];
+            if (first && first.kind === "dataframe") {
+              addInputNode(position, "dataframe", first.id);
+            } else if (first) {
+              // A dropped sequence file becomes an input node on the canvas.
+              addInputNode(position, sequence ? "sequence" : "fasta", first.id);
+            }
+          } catch (err) {
+            onCanvasError(err instanceof Error ? err.message : `${file.name} could not be imported.`);
+          }
+        }
+        return;
+      }
+
+      // Resource sidebar drag → input node referencing that resource.
+      const resourceId = e.dataTransfer.getData(RESOURCE_DROP_MIME);
+      if (resourceId) {
+        const resource = resources.find((r) => r.id === resourceId);
+        if (resource) addInputNode(position, resource.kind, resource.id);
+        return;
+      }
+
+      // Palette drag: "input:<kind>" | "tool:<id>" | "compute".
+      const kind = e.dataTransfer.getData(DROP_MIME);
+      if (!kind) return;
+      if (kind.startsWith("input:")) {
+        addInputNode(position, kind.slice("input:".length) as InputSourceKind);
+        return;
+      }
+      if (kind === "compute") {
+        addComputeNode(position);
+        return;
+      }
+      if (kind.startsWith("tool:")) {
+        addToolNode(position, kind.slice("tool:".length) as FlowToolId);
+      }
+    },
+    [screenToFlowPosition, resources, addResource, addInputNode, addToolNode, addComputeNode, onCanvasError],
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.dropEffect = "copy";
   }, []);
-
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const kind = e.dataTransfer.getData(DROP_MIME) as "" | "sequence" | FlowToolId;
-      if (!kind) return;
-      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      if (kind === "sequence") {
-        if (nodes.some((n) => n.type === "sequence")) return; // one sequence node per canvas
-        setNodes((nds) => [...nds, { id: "sequence", type: "sequence", position, data: { kind: "sequence" } }]);
-        return;
-      }
-      const meta = TOOL_NODE_CATALOG.find((t) => t.tool === kind);
-      if (!meta) return;
-      setNodes((nds) => [
-        ...nds,
-        {
-          id: `${kind}-${Date.now()}`,
-          type: "tool",
-          position,
-          data: { kind: "tool", tool: kind, params: { ...meta.defaults } },
-        },
-      ]);
-    },
-    [screenToFlowPosition, nodes, setNodes],
-  );
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: FlowNode) => onSelectNode(node.id),
@@ -215,7 +346,7 @@ function CanvasBody({
     <PanelBoundary title="Flow canvas" className="h-full">
       <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
         <ReactFlow
-          nodes={nodes}
+          nodes={displayNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodesChange={onNodesChange}
@@ -245,17 +376,21 @@ function CanvasBody({
 }
 
 /** The exported canvas — the provider wraps the body so useReactFlow
- *  (screenToFlowPosition for palette drops) resolves inside it. */
-export function FlowCanvas({
-  onSelectNode,
-  paramUpdates,
-}: {
+ *  (screenToFlowPosition for drops) resolves inside it. */
+export function FlowCanvas(props: {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  onNodesChange: OnNodesChange<FlowNode>;
+  onEdgesChange: OnEdgesChange<FlowEdge>;
+  onConnect: (connection: Connection) => void;
   onSelectNode: (id: string | null) => void;
-  paramUpdates?: Record<string, Record<string, string>>;
+  nodeStatus?: Record<string, DagNodeStatus>;
+  setNodes: Dispatch<SetStateAction<FlowNode[]>>;
+  onCanvasError: (message: string) => void;
 }) {
   return (
     <ReactFlowProvider>
-      <CanvasBody onSelectNode={onSelectNode} paramUpdates={paramUpdates} />
+      <CanvasBody {...props} />
     </ReactFlowProvider>
   );
 }

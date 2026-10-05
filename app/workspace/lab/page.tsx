@@ -20,7 +20,7 @@ import { PanelBoundary } from "@/components/workspace/panels/PanelBoundary";
 import { PanelSkeleton } from "@/components/workspace/panels/PanelSkeleton";
 import { Panel } from "@/components/workspace/panels/Panel";
 import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
-import { GelSimulation } from "@/components/workspace/lab/GelSimulation";
+import { GelSimulation } from "@/components/workspace/dna/GelSimulation";
 import { KineticsPanel } from "@/components/workspace/lab/KineticsPanel";
 import { MmParticleSim } from "@/components/workspace/lab/MmParticleSim";
 import { DenaturationPanel } from "@/components/workspace/lab/DenaturationPanel";

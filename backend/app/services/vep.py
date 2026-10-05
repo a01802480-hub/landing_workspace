@@ -158,3 +158,68 @@ async def predict(
     if sift is None and polyphen is None:
         return {"status": "unavailable", "detail": "No SIFT/PolyPhen consequence for this substitution."}
     return {"status": "ok", "hgvs": hgvs, "sift": sift, "polyphen": polyphen}
+
+
+async def predict_batch(
+    symbol: str, notations: list[str], ensembl_gene: str | None = None
+) -> dict:
+    """SIFT/PolyPhen for up to `notations` HGVS strings in ONE VEP POST.
+
+    Resolves the canonical ENSP once, then sends the array — the endpoint
+    accepts `hgvs_notations` lists natively. Returns
+    {"status": "ok", "results": {hgvs: {"sift": .., "polyphen": ..}}}
+    or {"status": "unavailable", "detail": ...} (whole batch degrades).
+    """
+    if not notations:
+        return {"status": "unavailable", "detail": "No notations to query."}
+    if not symbol and not ensembl_gene:
+        return {"status": "unavailable", "detail": "No gene mapping to resolve an Ensembl protein ID."}
+    ensp = await _canonical_ensp(symbol, ensembl_gene)
+    if not ensp:
+        return {"status": "unavailable", "detail": "No Ensembl protein mapping for this gene."}
+    hgvs_list = [f"{ensp}:{n}" for n in notations if n.startswith("p.")]
+    if not hgvs_list:
+        return {"status": "unavailable", "detail": "No valid notations to query."}
+    s = get_settings()
+    async with httpx.AsyncClient(timeout=s.ensembl_timeout_s) as client:
+        rows: list = []
+        for attempt in range(3):
+            try:
+                resp = await client.post(
+                    f"{s.ensembl_base_url}/vep/human/hgvs",
+                    json={"hgvs_notations": hgvs_list},
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                )
+            except httpx.HTTPError:
+                if attempt < 2:
+                    await asyncio.sleep(1.5 * (attempt + 1))
+                    continue
+                return {"status": "unavailable", "detail": "VEP upstream timeout (transport error)."}
+            if resp.status_code in (429, 500, 502, 503) and attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
+                continue
+            if resp.status_code != 200:
+                return {"status": "unavailable", "detail": f"VEP upstream error (HTTP {resp.status_code})."}
+            try:
+                rows = resp.json()
+            except ValueError:
+                return {"status": "unavailable", "detail": "VEP returned a non-JSON response."}
+            break
+    if not rows:
+        return {"status": "unavailable", "detail": "VEP returned no result."}
+    results: dict[str, dict] = {}
+    for row in rows:
+        hgvs = (row.get("input") or "").split(":", 1)[-1]
+        sift: dict | None = None
+        polyphen: dict | None = None
+        for tc in row.get("transcript_consequences", []) or []:
+            if sift is None and tc.get("sift_score") is not None:
+                sift = {"score": tc["sift_score"], "prediction": tc.get("sift_prediction")}
+            if polyphen is None and tc.get("polyphen_score") is not None:
+                polyphen = {"score": tc["polyphen_score"], "prediction": tc.get("polyphen_prediction")}
+        if sift is None and polyphen is None:
+            continue
+        results[hgvs] = {"sift": sift, "polyphen": polyphen}
+    if not results:
+        return {"status": "unavailable", "detail": "No SIFT/PolyPhen consequences in the batch."}
+    return {"status": "ok", "results": results}

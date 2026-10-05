@@ -22,9 +22,12 @@ import {
 } from "lucide-react";
 import { WORKSPACE_TOOLS } from "@/lib/tools";
 import { usePersistentState } from "@/lib/persistence";
+import { useIde, type WorkspaceTabId } from "@/lib/ide";
 
 interface RailItem {
   href: string;
+  /** Tab id inside the IDE (hash link target); undefined for external links. */
+  tab?: WorkspaceTabId;
   label: string;
   icon: LucideIcon;
   external?: boolean;
@@ -35,13 +38,19 @@ interface RailSection {
   items: RailItem[];
 }
 
-/** Workspace section derives from the single tool registry (lib/tools.ts). */
+/** Workspace section derives from the single tool registry (lib/tools.ts).
+ *  On the IDE route every item is a hash link into a keep-alive tab. */
 const SECTIONS: RailSection[] = [
   {
     label: "Workspace",
     items: [
-      { href: "/workspace", label: "Overview", icon: LayoutGrid },
-      ...WORKSPACE_TOOLS.map((t) => ({ href: t.href, label: t.label, icon: t.icon })),
+      { href: "/workspace", tab: "overview", label: "Overview", icon: LayoutGrid },
+      ...WORKSPACE_TOOLS.map((t) => ({
+        href: t.href,
+        tab: t.href.split("/").pop() as WorkspaceTabId,
+        label: t.label,
+        icon: t.icon,
+      })),
     ],
   },
   {
@@ -57,6 +66,7 @@ const SECTIONS: RailSection[] = [
 
 export function SideRail() {
   const pathname = usePathname();
+  const { activeTab, selectTab } = useIde();
   const [expanded, setExpanded] = usePersistentState<boolean>("rail:expanded", true, (v) =>
     typeof v === "boolean" ? v : null,
   );
@@ -94,7 +104,13 @@ export function SideRail() {
             )}
             <ul className="space-y-0.5 px-2">
               {section.items.map((item) => {
-                const active = !item.external && pathname === item.href;
+                // On the IDE route the active tool is the tab state; legacy
+                // deep links keep the pathname-equality check.
+                const active = !item.external
+                  ? pathname === "/workspace"
+                    ? item.tab === activeTab
+                    : pathname === item.href
+                  : false;
                 const Icon = item.icon;
                 const link = (
                   <span
@@ -115,7 +131,17 @@ export function SideRail() {
                         {link}
                       </a>
                     ) : (
-                      <Link href={item.href} aria-current={active ? "page" : undefined} className="block">
+                      <Link
+                        href={item.tab ? { pathname: "/workspace", hash: `#${item.tab}` } : item.href}
+                        scroll={false}
+                        onClick={() => {
+                          // Next's hash navigation goes through pushState,
+                          // which fires no hashchange — set the tab directly.
+                          if (item.tab) selectTab(item.tab);
+                        }}
+                        aria-current={active ? "page" : undefined}
+                        className="block"
+                      >
                         {link}
                       </Link>
                     )}

@@ -75,8 +75,14 @@ function dgTone(dg: number): { color: string; label: string } {
   return { color: "#66718f", label: "weak" };
 }
 
-export function DockingPanel() {
-  const [pdbId, setPdbId] = useState("1X9N");
+export function DockingPanel({
+  pdbId,
+  onPdbIdChange,
+}: {
+  /** The page-level protein picker state (docking uses PDB ids). */
+  pdbId: string;
+  onPdbIdChange: (id: string) => void;
+}) {
   const [ligand, setLigand] = useState<string>("aspirin");
   const [center, setCenter] = useState("");
   const [result, setResult] = useState<DockResult | null>(null);
@@ -122,13 +128,13 @@ export function DockingPanel() {
     }
   }, []);
 
-  // Boot with the demo pose (LIG1 · aspirin) so the panel arrives populated,
-  // exactly like the variants workspace does.
+  // Boot with the demo pose (aspirin against the picked structure) so the
+  // panel arrives populated, exactly like the variants workspace does.
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    void dock("1X9N", "aspirin", "");
-  }, [dock]);
+    void dock(pdbId, "aspirin", "");
+  }, [dock, pdbId]);
 
   const tone = result ? dgTone(result.delta_g_kcal_per_mol) : null;
   const kdText =
@@ -146,7 +152,7 @@ export function DockingPanel() {
         <Field label="PDB ID">
           <input
             value={pdbId}
-            onChange={(e) => setPdbId(e.target.value)}
+            onChange={(e) => onPdbIdChange(e.target.value)}
             maxLength={4}
             spellCheck={false}
             autoComplete="off"

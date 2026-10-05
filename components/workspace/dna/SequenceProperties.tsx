@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Scissors } from "lucide-react";
 import { fmt } from "@/lib/format";
 import { gcPercent, meltingTemp, sliceRegion } from "@/lib/sequences";
+import { useIde } from "@/lib/ide";
 import { useWorkspace } from "@/lib/workspaceStore";
 
 function Row({ label, value, mono = true }: { label: string; value: React.ReactNode; mono?: boolean }) {
@@ -24,6 +25,7 @@ function Row({ label, value, mono = true }: { label: string; value: React.ReactN
 
 export function SequenceProperties() {
   const { sequence, selection, setSelection } = useWorkspace();
+  const { selectTab } = useIde();
 
   if (!sequence) {
     return (
@@ -49,6 +51,11 @@ export function SequenceProperties() {
           <span className="chip !py-0.5">{sequence.source}</span>
           {sequence.accession && <span className="stat-num">{sequence.accession}</span>}
         </p>
+        {sequence.description && (
+          <p className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed text-mist/70" title={sequence.description}>
+            {sequence.description}
+          </p>
+        )}
       </div>
 
       <dl>
@@ -73,7 +80,13 @@ export function SequenceProperties() {
             </dl>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link
-                href={`/workspace/crispr?from=viewer&start=${selection!.start}&end=${selection!.end}`}
+                href={{
+                  pathname: "/workspace",
+                  query: { from: "viewer", start: String(selection!.start), end: String(selection!.end) },
+                  hash: "#crispr",
+                }}
+                scroll={false}
+                onClick={() => selectTab("crispr")}
                 className="btn-primary inline-flex items-center gap-1.5 !px-3 !py-1.5 text-[11px]"
               >
                 <Scissors className="h-3 w-3" /> Design guides in region

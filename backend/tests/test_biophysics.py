@@ -362,7 +362,33 @@ class TestSolventService:
 
     def test_unknown_solvent_raises(self):
         with pytest.raises(DockingError):
-            biophysics.solvent_curve("dmso")
+            biophysics.solvent_curve("notasolvent")
+
+    def test_extended_solvent_library(self):
+        """The redesign's library: 8 solvents, all resolvable, each carrying
+        the viewer parameterization fields."""
+        for name in ("ethanol", "urea", "guanidinium", "dmso", "tfe", "methanol", "sds", "heat"):
+            curve = biophysics.solvent_curve(name)
+            assert curve["solvent"] == name
+            assert "seed" in curve and "core_attack" in curve and "collapse" in curve
+            assert len(curve["dielectric_curve"]) == 40
+
+    def test_temperature_shifts_molar_midpoint(self):
+        """dCm/dT coupling: heat assists unfolding, so the warm titration
+        needs fewer molar of denaturant (Cm falls) and at a FIXED
+        concentration the warm curve is more unfolded."""
+        cold = biophysics.solvent_curve("ethanol", temperature_c=4.0)
+        warm = biophysics.solvent_curve("ethanol", temperature_c=60.0)
+        assert warm["cm_molar"] < cold["cm_molar"]
+        at = 3.0  # fixed concentration in both curves
+        f_cold = next(p for p in cold["dielectric_curve"] if p["concentration_molar"] >= at)["fraction_unfolded"]
+        f_warm = next(p for p in warm["dielectric_curve"] if p["concentration_molar"] >= at)["fraction_unfolded"]
+        assert f_warm > f_cold
+
+    def test_heat_axis_spans_temperature(self):
+        curve = biophysics.solvent_curve("heat")
+        assert curve["axis"] == "temperature"
+        assert curve["dielectric_curve"][-1]["temperature_c"] == curve["axis_max"]
 
 
 class TestSolventRoute:
@@ -375,9 +401,22 @@ class TestSolventRoute:
         assert body["solvent"] == name
         assert len(body["dielectric_curve"]) == 40
 
-    def test_unknown_solvent_is_422(self):
+    def test_unknown_solvent_is_404(self):
         with make_app() as client:
-            resp = client.get("/api/biophysics/solvent/dmso")
+            resp = client.get("/api/biophysics/solvent/notasolvent")
+        assert resp.status_code == 404
+
+    def test_temperature_query_param(self):
+        with make_app() as client:
+            resp = client.get("/api/biophysics/solvent/ethanol?temperature_c=60")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["temperature_c"] == 60
+        assert body["cm_molar"] < 4.2  # heat assists unfolding (dCm/dT < 0)
+
+    def test_temperature_out_of_range_is_422(self):
+        with make_app() as client:
+            resp = client.get("/api/biophysics/solvent/ethanol?temperature_c=200")
         assert resp.status_code == 422
 
     def test_traversal_solvent_is_rejected(self):

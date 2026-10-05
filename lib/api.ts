@@ -51,6 +51,11 @@ export async function apiRaw<T = unknown>(path: string, opts: ApiOptions = {}): 
     method,
     headers: { Accept: "application/json", ...headers },
     signal: controller.signal,
+    // The backend is a different origin (localhost:8000 vs :3000) — without
+    // credentials the CSRF cookie is neither planted by GETs nor echoed by
+    // POSTs, and every state-changing call dies with a 403. SameSite=Lax is
+    // fine here: both origins are the same site (localhost).
+    credentials: "include",
   };
 
   // CSRF double-submit for state-changing requests.
@@ -94,7 +99,15 @@ export async function apiRaw<T = unknown>(path: string, opts: ApiOptions = {}): 
     }
     throw new Error(detail);
   }
-  return (await res.json()) as T;
+  // JSON endpoints (everything FastAPI returns by default) parse as JSON;
+  // raw-file endpoints (`/structure/*/file` → text/plain PDB) must come
+  // back verbatim — `res.json()` on PDB text is the classic
+  // "Unexpected token 'H'" failure.
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return (await res.json()) as T;
+  }
+  return (await res.text()) as T;
 }
 
 /** Fetch + Zod-validate in one call. The schema is the render gate. */

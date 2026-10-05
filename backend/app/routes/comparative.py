@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from ..config import get_settings
@@ -95,3 +95,44 @@ async def msa_status(job_id: str = Path(pattern=_MSA_JOB_RE)) -> dict:
         return await clustal.poll(job_id)
     except clustal.ClustalError:
         raise HTTPException(status_code=404, detail="Unknown MSA job.")
+
+
+_UNIPROT_RE = r"^([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2})$"
+
+_SEARCH_SEQ_CAP = 2000
+
+
+@router.get("/comparative/search")
+async def search(q: str = Query(min_length=2, max_length=20), limit: int = Query(default=10, ge=1, le=20)) -> dict:
+    """Sequence search for the redesigned comparative workbench.
+
+    `q` is either a UniProt accession (exact) or a gene symbol (first
+    reviewed entry).  Sequences are truncated server-side at
+    _SEARCH_SEQ_CAP residues with an honest `truncated` flag.
+    """
+    import re
+
+    clean = q.strip()
+    try:
+        if re.fullmatch(_UNIPROT_RE, clean.upper()):
+            entries = [await uniprot.fetch_entry(clean.upper())]
+        else:
+            entries = [await uniprot.fetch_by_symbol(clean.upper())]
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)[:200])
+    except Exception:
+        raise HTTPException(status_code=502, detail="UniProtKB upstream error.")
+
+    out = []
+    for entry in entries[:limit]:
+        seq = entry.get("sequence") or ""
+        out.append({
+            "accession": entry.get("accession"),
+            "gene": entry.get("gene"),
+            "name": entry.get("name"),
+            "organism": entry.get("organism"),
+            "length": entry.get("length"),
+            "sequence": seq[:_SEARCH_SEQ_CAP],
+            "truncated": len(seq) > _SEARCH_SEQ_CAP,
+        })
+    return {"entries": out}

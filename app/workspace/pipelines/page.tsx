@@ -238,20 +238,24 @@ function SourceBadge({ source }: { source: PipelineRun["source"] }) {
   );
 }
 
-/** Reads ?run=&guides=&target= (from the CRISPR wizard) once, into the page. */
+/** Reads ?run=&guides=&target= (from the CRISPR wizard) into the page —
+ *  once per distinct parameter signature, so the keep-alive IDE tab
+ *  re-fires when a new launch targets it. */
 function PrefillReader({ onPrefill }: { onPrefill: (p: { pipeline: string; params: Record<string, string> }) => void }) {
   const search = useSearchParams();
-  const fired = useRef(false);
+  const last = useRef<string>("");
 
   useEffect(() => {
     const run = search.get("run");
-    if (!run || fired.current) return;
-    fired.current = true;
+    if (!run) return;
     const params: Record<string, string> = {};
     const guides = search.get("guides");
     const target = search.get("target");
     if (guides) params.guides = guides;
     if (target) params.target = target;
+    const key = `${run}|${guides ?? ""}|${target ?? ""}`;
+    if (last.current === key) return;
+    last.current = key;
     onPrefill({ pipeline: run, params });
   }, [search, onPrefill]);
 

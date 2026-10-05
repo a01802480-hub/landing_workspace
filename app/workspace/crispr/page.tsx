@@ -28,6 +28,9 @@ import { PanelSkeleton } from "@/components/workspace/panels/PanelSkeleton";
 import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
 import { CrisprToolSwitcher } from "@/components/workspace/crispr/CrisprToolSwitcher";
 import { PamTrack } from "@/components/workspace/crispr/PamTrack";
+import { setPendingGuide } from "@/lib/plasmid";
+import { useIde } from "@/lib/ide";
+import type { SgRna } from "@/lib/validation";
 import { SgRnaTable } from "@/components/workspace/crispr/SgRnaTable";
 import { OffTargetList } from "@/components/workspace/crispr/OffTargetList";
 import { CrisprGateWizard } from "@/components/workspace/crispr/CrisprGateWizard";
@@ -53,6 +56,15 @@ export default function CrisprPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [workspaceNote, setWorkspaceNote] = useState<string | null>(null);
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
+  const [manualGuides, setManualGuides] = useState<SgRna[]>([]);
+  const [mSpacer, setMSpacer] = useState("");
+  const [mPam, setMPam] = useState("NGG");
+  const [mStart, setMStart] = useState("");
+  const [mEnd, setMEnd] = useState("");
+  const [mStrand, setMStrand] = useState<"+" | "-">("+");
+  const [manualError, setManualError] = useState<string | null>(null);
+  const { selectTab } = useIde();
   const { state, submit } = useSgRnaDesign();
 
   const busy = state.kind === "running";
@@ -110,10 +122,72 @@ export default function CrisprPage() {
   const run = () => void submit(sequence, tool, geneLabel.trim(), organism.trim());
 
   const results = state.kind === "done" ? state.results : null;
+  const allGuides = useMemo(() => [...(results ?? []), ...manualGuides], [results, manualGuides]);
+  const activeGuides = useMemo(() => allGuides.filter((g) => !excludedIds.has(g.id)), [allGuides, excludedIds]);
   const selectedGuide = useMemo(
-    () => results?.find((g) => g.id === selectedId) ?? null,
-    [results, selectedId],
+    () => allGuides.find((g) => g.id === selectedId) ?? null,
+    [allGuides, selectedId],
   );
+
+  const toggleExcluded = (id: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const addManualGuide = () => {
+    const spacer = mSpacer.replace(/\s+/g, "").toUpperCase();
+    const start = parseInt(mStart, 10);
+    const end = parseInt(mEnd, 10);
+    setManualError(null);
+    if (!/^[ACGT]{20}$/.test(spacer)) {
+      setManualError("The spacer must be exactly 20 nt of A/C/G/T.");
+      return;
+    }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 1 || end > sequence.length || start > end) {
+      setManualError(`Positions must be 1–${sequence.length.toLocaleString()} with start ≤ end.`);
+      return;
+    }
+    if (manualGuides.some((g) => g.sequence === spacer)) {
+      setManualError("That spacer is already in the list.");
+      return;
+    }
+    setManualGuides((prev) => [
+      ...prev,
+      {
+        id: `manual-${Date.now()}`,
+        sequence: spacer,
+        pam: mPam.trim().toUpperCase().slice(0, 10) || "NGG",
+        start,
+        end,
+        strand: mStrand,
+        gc: Math.round(((spacer.match(/[GC]/g)?.length ?? 0) / 20) * 100),
+        on_target_score: -1, // manual — the UI renders "manual", never a fabricated score
+        off_target_count: 0,
+        off_targets: [],
+        efficiency_note: "manually entered — upstream scoring not run",
+      },
+    ]);
+    setMSpacer("");
+    setMStart("");
+    setMEnd("");
+  };
+
+  const designPlasmid = () => {
+    if (!selectedGuide) return;
+    setPendingGuide({
+      spacer: selectedGuide.sequence,
+      pam: selectedGuide.pam,
+      strand: selectedGuide.strand === "-" ? "-" : "+",
+      gene: geneLabel.trim(),
+      spacerStart: selectedGuide.start,
+      spacerEnd: selectedGuide.end,
+    });
+    selectTab("dna");
+  };
 
   return (
     <ToolScroll>
@@ -223,7 +297,7 @@ export default function CrisprPage() {
             <PanelBoundary title="Guide overview track" className="h-full">
               <PamTrack
                 sequence={sequence}
-                guides={results}
+                guides={activeGuides}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 hoverId={hoverId}
@@ -236,11 +310,13 @@ export default function CrisprPage() {
             <Panel title="Ranked guides" note="click a row to inspect" className="lg:col-span-2" bodyClassName="p-4">
               <PanelBoundary title="Guide table" className="h-full">
                 <SgRnaTable
-                  guides={results}
+                  guides={allGuides}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   hoverId={hoverId}
                   onHover={setHoverId}
+                  excludedIds={excludedIds}
+                  onToggleExcluded={toggleExcluded}
                 />
               </PanelBoundary>
             </Panel>
@@ -252,11 +328,73 @@ export default function CrisprPage() {
             </Panel>
           </div>
 
+          {/* Guide actions: exclude/reset, manual entry, plasmid handoff */}
+          <Panel title="Guide actions" note="edit the result set — then design the plasmid" className="mt-6" bodyClassName="p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="chip !py-0.5 text-[9px]">
+                {excludedIds.size} excluded · {activeGuides.length} active
+              </span>
+              {excludedIds.size > 0 && (
+                <button type="button" onClick={() => setExcludedIds(new Set())} className="btn-ghost !px-2.5 !py-1 text-[10px]">
+                  reset exclusions
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={designPlasmid}
+                disabled={!selectedGuide || excludedIds.has(selectedGuide.id)}
+                className="btn-primary inline-flex items-center gap-1.5 !px-3 !py-1.5 text-[11px] disabled:opacity-40"
+              >
+                Design plasmid with this guide
+              </button>
+              {selectedGuide && (
+                <span className="stat-num ml-auto font-mono text-[10px] text-mist/70">
+                  {selectedGuide.sequence} {selectedGuide.pam} · {selectedGuide.start}–{selectedGuide.end} ({selectedGuide.strand})
+                </span>
+              )}
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-ink-950/5 pt-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-[9px] tracking-wide text-mist/60 uppercase">spacer (20 nt)</span>
+                <input value={mSpacer} onChange={(e) => setMSpacer(e.target.value)} aria-label="Manual spacer"
+                  className="glass-panel w-44 px-2 py-1.5 font-mono text-xs text-frost focus:border-glow-violet/50 focus:outline-none" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[9px] tracking-wide text-mist/60 uppercase">PAM</span>
+                <input value={mPam} onChange={(e) => setMPam(e.target.value)} aria-label="Manual PAM"
+                  className="glass-panel w-16 px-2 py-1.5 font-mono text-xs text-frost focus:border-glow-violet/50 focus:outline-none" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[9px] tracking-wide text-mist/60 uppercase">start</span>
+                <input value={mStart} onChange={(e) => setMStart(e.target.value.replace(/[^0-9]/g, ""))} aria-label="Manual start"
+                  className="glass-panel w-20 px-2 py-1.5 font-mono text-xs text-frost focus:border-glow-violet/50 focus:outline-none" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[9px] tracking-wide text-mist/60 uppercase">end</span>
+                <input value={mEnd} onChange={(e) => setMEnd(e.target.value.replace(/[^0-9]/g, ""))} aria-label="Manual end"
+                  className="glass-panel w-20 px-2 py-1.5 font-mono text-xs text-frost focus:border-glow-violet/50 focus:outline-none" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[9px] tracking-wide text-mist/60 uppercase">strand</span>
+                <select value={mStrand} onChange={(e) => setMStrand(e.target.value === "-" ? "-" : "+")} aria-label="Manual strand"
+                  className="glass-panel px-2 py-1.5 text-xs text-frost focus:border-glow-violet/50 focus:outline-none">
+                  <option value="+">+</option>
+                  <option value="-">−</option>
+                </select>
+              </label>
+              <button type="button" onClick={addManualGuide} disabled={sequence.length === 0}
+                className="btn-ghost !px-3 !py-1.5 text-[11px] disabled:opacity-40">
+                + add guide
+              </button>
+            </div>
+            {manualError && <p role="alert" className="mt-2 text-[10px] text-[#c13b3b]">{manualError}</p>}
+          </Panel>
+
           {tool === "crispr_gate" && (
             <Panel title="CRISPR-GATE knockout plan" note="choose a guide → confirm → Nextflow" className="mt-6" bodyClassName="p-4">
               <PanelBoundary title="Knockout wizard" className="h-full">
                 <CrisprGateWizard
-                  guides={results}
+                  guides={activeGuides}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
                   geneLabel={geneLabel}
@@ -274,22 +412,24 @@ export default function CrisprPage() {
 }
 
 /** Reads ?tool=&start=&end= (from the flow builder or the DNA sidebar)
- *  exactly once, into the page. */
+ *  into the page — once per distinct parameter signature, so the
+ *  keep-alive IDE tab re-fires when a new run targets it. */
 function PrefillReader({
   onPrefill,
 }: {
   onPrefill: (tool: string | null, start: string | null, end: string | null) => void;
 }) {
   const search = useSearchParams();
-  const fired = useRef(false);
+  const last = useRef<string>("");
 
   useEffect(() => {
-    if (fired.current) return;
     const tool = search.get("tool");
     const start = search.get("start");
     const end = search.get("end");
     if (!tool && !start && !end) return;
-    fired.current = true;
+    const key = `${tool}|${start}|${end}`;
+    if (last.current === key) return;
+    last.current = key;
     onPrefill(tool, start, end);
   }, [search, onPrefill]);
 

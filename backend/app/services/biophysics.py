@@ -165,6 +165,14 @@ class SolventModel:
     epsilon_water: float
     epsilon_slope: float
     notes: str
+    # Visual/geometry parameterization for the unfolding viewer — each field
+    # is a documented, deterministic parameter, never a random fudge:
+    seed: int = 7            # seeds the unfolded-coil reference geometry
+    core_attack: float = 1.6 # hydrophobic-core exposure tint factor
+    collapse: float = 0.45   # side-chain collapse fraction at full unfolding
+    dcm_dt: float = 0.0      # dCm/dT (M per degC, negative = heat assists unfolding)
+    axis: str = "molar"      # "molar" (denaturant M) | "temperature" (degC)
+    axis_max: float = 8.0    # curve span: 8.0 M or 95.0 degC
 
 
 # ── Strict PDB atom reader ─────────────────────────────────────────────────
@@ -584,6 +592,10 @@ SOLVENTS: dict[str, SolventModel] = {
             "hydrophobic core and destabilizes it — an order-of-magnitude "
             "estimate, not a measured denaturation isotherm."
         ),
+        seed=11,
+        core_attack=1.6,
+        collapse=0.45,
+        dcm_dt=-0.02,
     ),
     "urea": SolventModel(
         name="urea",
@@ -598,6 +610,10 @@ SOLVENTS: dict[str, SolventModel] = {
             "dielectric constant only slightly and acts mainly by competing for "
             "backbone hydrogen bonds — an order-of-magnitude estimate."
         ),
+        seed=23,
+        core_attack=0.9,
+        collapse=0.35,
+        dcm_dt=-0.04,
     ),
     "guanidinium": SolventModel(
         name="guanidinium",
@@ -613,38 +629,146 @@ SOLVENTS: dict[str, SolventModel] = {
             "charged and also perturbs the ionic atmosphere — an "
             "order-of-magnitude estimate."
         ),
+        seed=37,
+        core_attack=0.9,
+        collapse=0.25,
+        dcm_dt=-0.03,
+    ),
+    "dmso": SolventModel(
+        name="dmso",
+        cm_molar=4.5,
+        m_value=1.0,
+        s=1.3,
+        epsilon_water=78.5,
+        epsilon_slope=-1.1,
+        notes=(
+            "Empirical two-state model: ε(c) = 78.5 − 1.1·c; Cm = 4.5 M, "
+            "m = 1.0 kcal mol⁻¹ M⁻¹, s = 1.3 M. DMSO is a mild "
+            "cosolvent denaturant that lowers the dielectric constant "
+            "(ε ~ 47 neat) and weakly attacks the hydrophobic core — "
+            "order-of-magnitude literature-scale constants."
+        ),
+        seed=41,
+        core_attack=1.1,
+        collapse=0.5,
+        dcm_dt=-0.01,
+    ),
+    "tfe": SolventModel(
+        name="tfe",
+        cm_molar=2.5,
+        m_value=1.8,
+        s=0.9,
+        epsilon_water=78.5,
+        epsilon_slope=-2.0,
+        notes=(
+            "Empirical two-state model: ε(c) = 78.5 − 2.0·c; Cm = 2.5 M, "
+            "m = 1.8 kcal mol⁻¹ M⁻¹, s = 0.9 M. 2,2,2-trifluoroethanol "
+            "is a strong helix-inducing cosolvent at low concentration and a "
+            "potent core destabilizer at higher concentration — "
+            "order-of-magnitude literature-scale constants."
+        ),
+        seed=53,
+        core_attack=2.2,
+        collapse=0.3,
+        dcm_dt=-0.02,
+    ),
+    "methanol": SolventModel(
+        name="methanol",
+        cm_molar=5.5,
+        m_value=1.4,
+        s=1.2,
+        epsilon_water=78.5,
+        epsilon_slope=-1.6,
+        notes=(
+            "Empirical two-state model: ε(c) = 78.5 − 1.6·c; Cm = 5.5 M, "
+            "m = 1.4 kcal mol⁻¹ M⁻¹, s = 1.2 M. Methanol is a weaker "
+            "core destabilizer than ethanol — order-of-magnitude "
+            "literature-scale constants."
+        ),
+        seed=67,
+        core_attack=1.3,
+        collapse=0.5,
+        dcm_dt=-0.02,
+    ),
+    "sds": SolventModel(
+        name="sds",
+        cm_molar=0.9,
+        m_value=3.2,
+        s=0.4,
+        epsilon_water=78.5,
+        epsilon_slope=0.0,
+        notes=(
+            "Empirical two-state model: Cm = 0.9 M (≈ 0.3% w/v), "
+            "m = 3.2 kcal mol⁻¹ M⁻¹, s = 0.4 M. Sodium dodecyl sulfate "
+            "unfolds at millimolar concentrations through Coulombic wrapping "
+            "of the peptide chain — order-of-magnitude literature-scale "
+            "constants."
+        ),
+        seed=71,
+        core_attack=0.6,
+        collapse=0.85,
+        dcm_dt=0.0,
+    ),
+    "heat": SolventModel(
+        name="heat",
+        cm_molar=68.0,
+        m_value=0.0,
+        s=7.0,
+        epsilon_water=78.5,
+        epsilon_slope=-0.02,
+        notes=(
+            "Empirical two-state thermal model: the midpoint is Tm = 68 °C "
+            "with a sigmoid width s = 7 °C. The dielectric constant falls "
+            "only weakly with temperature — order-of-magnitude "
+            "literature-scale constants, not a measured melting curve."
+        ),
+        seed=83,
+        core_attack=1.2,
+        collapse=0.55,
+        dcm_dt=0.0,
+        axis="temperature",
+        axis_max=95.0,
     ),
 }
 
 
-def solvent_curve(solvent: str) -> dict:
-    """Dielectric constant and unfolded fraction from 0 to 8 M (40 points).
+def solvent_curve(solvent: str, temperature_c: float = 25.0) -> dict:
+    """Dielectric constant and unfolded fraction across the solvent's axis.
 
     Two-state linear-extrapolation models, documented in the module
     docstring and in the per-solvent notes — honest approximations, not a
-    free-energy calculation.
+    free-energy calculation.  For molar solvents the temperature shifts the
+    midpoint: Cm_eff = Cm + dcm_dt·(T − 25).  For axis="temperature"
+    (heat) the curve spans degrees Celsius instead of molarity.
     """
     model = SOLVENTS.get(solvent)
     if model is None:
         raise DockingError("Unknown solvent.")
+    temp = max(0.0, min(100.0, float(temperature_c)))
+    cm_eff = model.cm_molar + model.dcm_dt * (temp - 25.0)
     curve: list[dict] = []
     for i in range(_SOLVENT_POINTS):
-        c = _SOLVENT_MAX_MOLAR * i / (_SOLVENT_POINTS - 1)
-        epsilon = model.epsilon_water + model.epsilon_slope * c
-        fraction = 1.0 / (1.0 + math.exp((model.cm_molar - c) / model.s))
+        x = model.axis_max * i / (_SOLVENT_POINTS - 1)
+        epsilon = model.epsilon_water + model.epsilon_slope * x
+        fraction = 1.0 / (1.0 + math.exp((cm_eff - x) / model.s))
         curve.append({
-            "concentration_molar": round(c, 3),
+            "concentration_molar": round(x, 3),
+            "temperature_c": round(x if model.axis == "temperature" else temp, 2),
             "dielectric_constant": round(epsilon, 2),
             "fraction_unfolded": round(fraction, 3),
         })
     return {
         "solvent": model.name,
-        "cm_molar": model.cm_molar,
+        "cm_molar": round(cm_eff, 3),
         "m_value_kcal_per_mol_per_molar": model.m_value,
         "dielectric_curve": curve,
         "notes": model.notes,
+        # Viewer parameterization — deterministic, documented per solvent.
+        "seed": model.seed,
+        "core_attack": model.core_attack,
+        "collapse": model.collapse,
+        "dcm_dt": model.dcm_dt,
+        "axis": model.axis,
+        "axis_max": model.axis_max,
+        "temperature_c": temp,
     }
-
-
-
-

@@ -25,17 +25,14 @@
  * opacity fade when results land (skipped under prefers-reduced-motion), and
  * no transition shorter than 0.3 s.
  */
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { apiValidated } from "@/lib/api";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { fmt, hexToRgb } from "@/lib/format";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { usePersistentState } from "@/lib/persistence";
+import { useMsaJob } from "@/lib/msa";
 import {
   MSA_ID_RE,
   MSA_SEQUENCE_RE,
-  MsaJobStartSchema,
-  MsaJobStatusSchema,
-  MsaSequencesSchema,
   type MsaResult,
   type MsaSequence,
 } from "@/lib/validation";
@@ -118,7 +115,7 @@ function rampInk(v: number): string {
  * Parse a FASTA block into at most 50 records. Errors carry a line number and
  * never echo anything that has not already passed the identifier pattern.
  */
-function parseFasta(text: string): { sequences: MsaSequence[] } | { error: string } {
+export function parseFasta(text: string): { sequences: MsaSequence[] } | { error: string } {
   const records: { id: string; chunks: string[] }[] = [];
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
@@ -394,7 +391,7 @@ function FadeIn({ children }: { children: ReactNode }) {
   );
 }
 
-function MsaResults({ result }: { result: MsaResult }) {
+export function MsaResults({ result }: { result: MsaResult }) {
   if (result.alignment.length === 0 || columnCount(result) === 0) {
     return (
       <p className="glass-panel p-4 text-xs text-mist/70">
@@ -412,109 +409,15 @@ function MsaResults({ result }: { result: MsaResult }) {
   );
 }
 
-// ── Panel ──────────────────────────────────────────────────────────────────
-
-type JobState =
-  | { kind: "idle" }
-  | { kind: "running"; jobId: string | null }
-  | { kind: "done"; result: MsaResult }
-  | { kind: "error"; detail: string };
-
-/** Job ids travel into a URL, so they must be strict identifiers too — this
- *  mirrors the backend's job-id path pattern (URL-safe base64, no dots). */
-const MSA_JOB_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
+// ── Panel ────────────────────────────────────────────────────────────────────────────────────────────
 
 export function MsaPanel() {
   const textareaId = useId();
   const [fasta, setFasta] = usePersistentState<string>(FASTA_DRAFT_KEY, "", (stored) =>
     typeof stored === "string" && stored.length <= 20_000 ? stored : null,
   );
-  const [job, setJob] = useState<JobState>({ kind: "idle" });
   const [inputError, setInputError] = useState<string | null>(null);
-  /** Exactly what the last job was started with — Retry re-submits it. */
-  const submittedRef = useRef<MsaSequence[] | null>(null);
-
-  const busy = job.kind === "running";
-
-  // Poll the job every 3 s (cap ~40 polls → 2 min), then a designed timeout.
-  useEffect(() => {
-    if (job.kind !== "running" || job.jobId === null) return;
-    const jobId = job.jobId;
-    if (!MSA_JOB_ID_RE.test(jobId)) {
-      setJob({ kind: "error", detail: "The alignment service returned an unexpected job identifier." });
-      return;
-    }
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let polls = 0;
-
-    const poll = async () => {
-      polls += 1;
-      try {
-        const status = await apiValidated(`/comparative/msa/${encodeURIComponent(jobId)}`, MsaJobStatusSchema, {
-          timeoutMs: POLL_TIMEOUT_MS,
-        });
-        if (cancelled) return;
-        if (status.status === "done") {
-          if (!status.result) {
-            setJob({ kind: "error", detail: "The alignment job finished without results — retry it." });
-            return;
-          }
-          setJob({ kind: "done", result: status.result });
-          return;
-        }
-        if (status.status === "error") {
-          setJob({ kind: "error", detail: status.detail ?? "The alignment job failed on the server." });
-          return;
-        }
-        if (polls >= MAX_POLLS) {
-          setJob({
-            kind: "error",
-            detail: `The alignment job did not finish within 2 minutes (${MAX_POLLS} polls). Retry to start it again.`,
-          });
-          return;
-        }
-        timer = setTimeout(() => void poll(), POLL_INTERVAL_MS);
-      } catch (e) {
-        if (cancelled) return;
-        setJob({
-          kind: "error",
-          detail: e instanceof Error && e.message ? e.message : "The alignment service did not answer.",
-        });
-      }
-    };
-
-    timer = setTimeout(() => void poll(), POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [job]);
-
-  const submit = useCallback(async (sequences: MsaSequence[]) => {
-    const gate = MsaSequencesSchema.safeParse(sequences);
-    if (!gate.success) {
-      setInputError("These sequences did not pass the client-side checks: 2–50 records, strict ids, residue alphabet.");
-      return;
-    }
-    setInputError(null);
-    submittedRef.current = gate.data;
-    setJob({ kind: "running", jobId: null });
-    try {
-      const started = await apiValidated("/comparative/msa", MsaJobStartSchema, {
-        method: "POST",
-        body: JSON.stringify({ sequences: gate.data }),
-        timeoutMs: SUBMIT_TIMEOUT_MS,
-      });
-      setJob({ kind: "running", jobId: started.job_id });
-    } catch (e) {
-      setJob({
-        kind: "error",
-        detail: e instanceof Error && e.message ? e.message : "The alignment job could not be started.",
-      });
-    }
-  }, []);
+  const { job, submit, busy, retry } = useMsaJob();
 
   const runFromTextarea = useCallback(() => {
     const parsed = parseFasta(fasta);
@@ -530,10 +433,15 @@ export function MsaPanel() {
     setInputError(null);
   }, [setFasta]);
 
-  const retry = useCallback(() => {
-    if (submittedRef.current) void submit(submittedRef.current);
-    else runFromTextarea();
-  }, [submit, runFromTextarea]);
+  const retryOrRun = useCallback(() => {
+    // The hook's retry re-submits the last submission; when there was none,
+    // re-run whatever is in the textarea.
+    if (job.kind === "error" && job.detail.includes("could not be started")) {
+      runFromTextarea();
+    } else {
+      retry();
+    }
+  }, [retry, runFromTextarea, job]);
 
   const note =
     job.kind === "done"
@@ -603,7 +511,7 @@ export function MsaPanel() {
             <div className="glass-panel p-4" role="alert">
               <p className="text-sm font-medium text-frost">The alignment did not complete</p>
               <p className="mt-1 max-w-xl text-xs leading-relaxed text-mist/80">{job.detail}</p>
-              <button type="button" onClick={retry} className="btn-ghost mt-3 !px-4 !py-1.5 text-xs">
+              <button type="button" onClick={retryOrRun} className="btn-ghost mt-3 !px-4 !py-1.5 text-xs">
                 Retry
               </button>
             </div>
