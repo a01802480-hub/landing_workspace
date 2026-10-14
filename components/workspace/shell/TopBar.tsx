@@ -6,10 +6,11 @@
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Users } from "lucide-react";
 import { OVERVIEW_META, WORKSPACE_TOOLS } from "@/lib/tools";
 import { useDagRunsLive } from "@/lib/dagContext";
 import { useIde, type WorkspaceTabId } from "@/lib/ide";
+import { usePersistentState } from "@/lib/persistence";
 import { HealthChip } from "./HealthChip";
 import { StatusDot } from "./StatusDot";
 
@@ -29,19 +30,45 @@ export function TopBar() {
   const pathname = usePathname();
   const { activeTab, splitView, selectTab } = useIde();
   const { runs } = useDagRunsLive();
+  const [workspaceTitle, setWorkspaceTitle] = usePersistentState<string>(
+    "workspace:title",
+    "Genome Design Workspace",
+    (v) => (typeof v === "string" ? v.slice(0, 80) : null),
+  );
   const meta = pathname === "/workspace" ? TAB_TITLES[activeTab] : (TITLES[pathname] ?? TITLES["/workspace"]);
   const latest = runs[0];
   const running = latest && (latest.status === "queued" || latest.status === "running");
   return (
-    <header className="flex shrink-0 items-center gap-3 px-4 py-2.5">
-      <h1 className="text-sm font-semibold tracking-tight text-frost">
-        {splitView ? "Sequence Map + Workflow" : meta.title}
-      </h1>
-      <span aria-hidden className="hidden text-mist/30 sm:inline">·</span>
-      <p className="hidden text-xs text-mist/60 sm:block">
-        {splitView ? "split view — selection and canvas state stay in sync" : meta.note}
-      </p>
+    <header className="flex shrink-0 items-center gap-3 px-4 py-2">
+      <div className="min-w-0 flex-1">
+        <input
+          value={workspaceTitle}
+          onChange={(e) => setWorkspaceTitle(e.target.value)}
+          className="w-full max-w-sm rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-semibold tracking-tight text-frost transition-colors duration-300 ease-out outline-none hover:border-ink-950/10 focus:border-glow-violet/35"
+          aria-label="Workspace title"
+        />
+        <p className="truncate text-[11px] text-mist/65">
+          {splitView ? "Sequence Map + Workflow · linked editing context" : `${meta.title} · ${meta.note}`}
+        </p>
+      </div>
+
+      <div className="hidden items-center gap-1.5 md:flex">
+        {["AL", "RM", "DNA"].map((member) => (
+          <span key={member} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-ink-950/10 bg-white/80 text-[10px] font-semibold text-mist">
+            {member}
+          </span>
+        ))}
+        <span className="chip">
+          <Users className="h-3 w-3" />
+          Live
+        </span>
+      </div>
+
       <div className="ml-auto flex items-center gap-2">
+        <span className="chip hidden sm:inline-flex">
+          <Check className="h-3.5 w-3.5 text-[#0ca30c]" />
+          All changes saved
+        </span>
         {running && (
           <Link
             href="/workspace#flows"

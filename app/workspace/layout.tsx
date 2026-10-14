@@ -2,6 +2,7 @@ import { ClinicalBackdrop } from "@/components/bits/ClinicalBackdrop";
 import { SideRail } from "@/components/workspace/shell/SideRail";
 import { TopBar } from "@/components/workspace/shell/TopBar";
 import { ResourceSidebar } from "@/components/workspace/shell/ResourceSidebar";
+import { WorkspaceContextBar } from "@/components/workspace/shell/WorkspaceContextBar";
 import { DagRunsProvider } from "@/lib/dagContext";
 import { IdeProvider } from "@/lib/ide";
 import { WorkspaceProvider } from "@/lib/workspaceStore";
@@ -29,6 +30,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
             <ResourceSidebar />
             <div className="relative z-10 flex min-w-0 flex-1 flex-col">
               <TopBar />
+              <WorkspaceContextBar />
               <main className="min-h-0 flex-1">{children}</main>
             </div>
           </div>

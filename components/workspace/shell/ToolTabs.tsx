@@ -36,44 +36,49 @@ export function ToolTabs() {
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-ink-950/5 px-3 py-1.5" role="tablist" aria-label="Workspace tools">
-      {PILLS.map((pill) => {
-        const active = splitView
-          ? pill.id === "dna" || pill.id === "flows"
-          : pill.id === activeTab;
-        const Icon = pill.icon;
-        return (
-          <button
-            key={pill.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-controls={`tab-${pill.id}`}
-            onClick={() => pick(pill.id)}
-            className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors duration-300 ease-out ${
-              active
-                ? "border-glow-violet/50 bg-glow-violet/15 font-medium text-frost"
-                : "border-transparent text-mist hover:bg-ink-950/5 hover:text-frost"
-            }`}
-          >
-            <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
-            {pill.label}
-          </button>
-        );
-      })}
+    <div className="flex shrink-0 items-center gap-2 border-b border-ink-950/5 px-3 py-1.5">
+      <span className="hidden shrink-0 text-[10px] font-semibold tracking-[0.16em] text-mist/55 uppercase md:inline">
+        Workspace views
+      </span>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="tablist" aria-label="Workspace tools">
+        {PILLS.map((pill) => {
+          const active = splitView
+            ? pill.id === "dna" || pill.id === "flows"
+            : pill.id === activeTab;
+          const Icon = pill.icon;
+          return (
+            <button
+              key={pill.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-controls={`tab-${pill.id}`}
+              onClick={() => pick(pill.id)}
+              className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs whitespace-nowrap transition-colors duration-300 ease-out ${
+                active
+                  ? "border-glow-violet/50 bg-white text-frost shadow-[0_4px_14px_rgba(101,89,163,0.12)]"
+                  : "border-transparent bg-transparent text-mist hover:border-ink-950/10 hover:bg-white/70 hover:text-frost"
+              }`}
+            >
+              <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={2} />
+              {pill.label}
+            </button>
+          );
+        })}
+      </div>
       <button
         type="button"
         onClick={() => setSplitView((v) => !v)}
         aria-pressed={splitView}
         title={splitView ? "Exit split view" : "Split: Sequence Map + Workflow Builder"}
-        className={`ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs whitespace-nowrap transition-colors duration-300 ease-out ${
+        className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs whitespace-nowrap transition-colors duration-300 ease-out ${
           splitView
-            ? "border-glow-violet/50 bg-glow-violet/15 font-medium text-frost"
+            ? "border-glow-violet/50 bg-white font-medium text-frost shadow-[0_4px_14px_rgba(101,89,163,0.12)]"
             : "border-ink-950/10 bg-white/70 text-mist hover:border-ink-950/30 hover:text-frost"
         }`}
       >
         <Columns2 aria-hidden className="h-3.5 w-3.5" />
-        {splitView ? "Exit split" : "Split"}
+        {splitView ? "Exit split" : "Split view"}
       </button>
     </div>
   );
