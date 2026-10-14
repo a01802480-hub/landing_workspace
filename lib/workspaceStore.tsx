@@ -80,6 +80,10 @@ interface WorkspaceState {
   verifyHistory: () => Promise<VerifyResult | null>;
   /** Download the provenance report (JSON). */
   exportAudit: () => Promise<void>;
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
@@ -96,6 +100,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selection, setSelection] = useState<SequenceSelection | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
   const [audit, setAudit] = useState<AuditLog | null>(null);
+  const [undoStack, setUndoStack] = useState<WorkspaceSequence[]>([]);
+  const [redoStack, setRedoStack] = useState<WorkspaceSequence[]>([]);
   const [editing, setEditing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const skipWrite = useRef({ sequence: false, resources: false, audit: false });
@@ -173,6 +179,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setSequenceState(seq);
     setSelection(null); // a new sequence invalidates the old selection
     setAudit(null); // the log is re-genesised on the first edit of this sequence
+    setUndoStack([]);
+    setRedoStack([]);
   }, []);
 
   const addResource = useCallback((r: Resource) => {
@@ -216,6 +224,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         hashAlgo: hashAfter.algo,
       };
       const genesis = audit?.genesis ?? (await makeGenesis(before));
+      setUndoStack((prev) => [...prev.slice(-39), before]);
+      setRedoStack([]);
       setSequenceState({ ...before, seq: after, annotations, features, enzymes: [], revision: before.revision + 1 });
       setSelection(null);
       setAudit(await appendAuditEntry({ genesis, entries: audit?.entries ?? [] }, entry));
@@ -270,9 +280,35 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       strand: direction,
       color,
     };
+    setUndoStack((prev) => [...prev.slice(-39), current]);
+    setRedoStack([]);
     setSequenceState({ ...current, annotations: [...current.annotations, annotation], features: [...current.features, feature] });
     void recordAuditNote("annotate", `annotated ${sel.start.toLocaleString()}–${sel.end.toLocaleString()} as ${cleanName} (${cleanType})`);
   }, [selection, recordAuditNote]);
+
+  const undo = useCallback(() => {
+    setUndoStack((prev) => {
+      if (prev.length === 0) return prev;
+      const current = sequenceRef.current;
+      if (current) setRedoStack((redo) => [...redo.slice(-39), current]);
+      const next = prev[prev.length - 1];
+      setSequenceState(next);
+      setSelection(null);
+      return prev.slice(0, -1);
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setRedoStack((prev) => {
+      if (prev.length === 0) return prev;
+      const current = sequenceRef.current;
+      if (current) setUndoStack((undo) => [...undo.slice(-39), current]);
+      const next = prev[prev.length - 1];
+      setSequenceState(next);
+      setSelection(null);
+      return prev.slice(0, -1);
+    });
+  }, []);
 
   const verifyHistory = useCallback(async (): Promise<VerifyResult | null> => {
     const current = sequenceRef.current;
@@ -309,8 +345,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       annotateSelection,
       verifyHistory,
       exportAudit,
+      canUndo: undoStack.length > 0,
+      canRedo: redoStack.length > 0,
+      undo,
+      redo,
     }),
-    [sequence, selection, setSequence, resources, addResource, removeResource, hydrated, audit, editing, editSequence, recordAuditNote, annotateSelection, verifyHistory, exportAudit],
+    [sequence, selection, setSequence, resources, addResource, removeResource, hydrated, audit, editing, editSequence, recordAuditNote, annotateSelection, verifyHistory, exportAudit, undoStack.length, redoStack.length, undo, redo],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

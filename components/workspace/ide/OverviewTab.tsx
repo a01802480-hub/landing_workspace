@@ -1,100 +1,25 @@
 "use client";
 
-/**
- * OverviewTab — the IDE's dashboard tab (the former workspace hub).
- * KPI StatTiles + the tool-card grid; cards navigate inside the IDE
- * via hash links so nothing remounts.
- */
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ArrowRight } from "lucide-react";
-import { apiValidated } from "@/lib/api";
-import { CatalogSchema } from "@/lib/validation";
-import { WORKSPACE_TOOLS } from "@/lib/tools";
-import { useIde, type WorkspaceTabId } from "@/lib/ide";
-import { FloatIn } from "@/components/antigravity/FloatIn";
-import { GlassCard } from "@/components/antigravity/GlassCard";
-import { IsometricTilt } from "@/components/antigravity/IsometricTilt";
-import { HealthChip } from "@/components/workspace/shell/HealthChip";
-import { StatTile } from "@/components/workspace/panels/StatTile";
-import { ToolScroll } from "@/components/workspace/shell/ToolScroll";
+import { Dna, Layers, NotebookPen } from "lucide-react";
+import { BioWorkspaceCanvas } from "@/components/workspace/free/BioWorkspaceCanvas";
 
 export function OverviewTab() {
-  const [structureCount, setStructureCount] = useState<number | null>(null);
-  const { selectTab } = useIde();
-
-  useEffect(() => {
-    let cancelled = false;
-    apiValidated("/structure/catalog", CatalogSchema)
-      .then((r) => {
-        if (!cancelled) setStructureCount(r.entries.length);
-      })
-      .catch(() => {
-        if (!cancelled) setStructureCount(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <ToolScroll>
-      <FloatIn className="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+      <section className="mx-auto flex w-full max-w-5xl flex-wrap items-start justify-between gap-3 px-4 pt-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-frost">Workspace</h1>
-          <p className="mt-2 max-w-xl text-mist">
-            Every tool is a floating panel over the same clinical void. Pick a lens, or start
-            from the challenge structures below.
+          <h1 className="text-2xl font-semibold tracking-tight text-frost">Free Workspace</h1>
+          <p className="mt-1 max-w-2xl text-sm text-mist">
+            Start from a blank analysis page, insert biological blocks in-place, and keep sequence work directly in context.
           </p>
         </div>
-        <HealthChip />
-      </FloatIn>
-
-      {/* KPI blocks — the shared StatTile, one block style for every dashboard. */}
-      <FloatIn stagger={0.1} className="mb-8 grid gap-4 sm:grid-cols-3">
-        <StatTile
-          label="Challenge structures"
-          value={structureCount ?? "…"}
-          caption="LIG1 · RuBisCO presets, one click away"
-        />
-        <StatTile
-          label="Analysis channels"
-          value={WORKSPACE_TOOLS.length}
-          caption="structure · DNA · CRISPR · pipelines · interactions · comparative · variants · lab"
-        />
-        <StatTile
-          label="Upstream sources"
-          value="7"
-          caption="AlphaFold DB · RCSB · UniProt · Ensembl · InterPro · NCBI Entrez · AlphaMissense/VEP"
-        />
-      </FloatIn>
-
-      <FloatIn stagger={0.1} className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {WORKSPACE_TOOLS.map((t) => {
-          const tabId = t.href.split("/").pop() as WorkspaceTabId;
-          return (
-            <IsometricTilt key={t.href} className="h-full">
-              <Link
-                href={`/workspace#${tabId}`}
-                scroll={false}
-                onClick={() => selectTab(tabId)}
-                className="block h-full"
-              >
-                <GlassCard className="flex h-full flex-col p-7">
-                  <span className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-ink-950/10 bg-glow-violet/10 text-glow-violet" aria-hidden>
-                    <t.icon className="h-5 w-5" strokeWidth={1.8} />
-                  </span>
-                  <h2 className="text-lg font-semibold text-frost">{t.title}</h2>
-                  <p className="mt-2 flex-1 text-sm leading-relaxed text-mist">{t.body}</p>
-                  <span className="mt-5 inline-flex items-center gap-1.5 text-sm text-glow-violet/90">
-                    Open <ArrowRight className="h-3.5 w-3.5" />
-                  </span>
-                </GlassCard>
-              </Link>
-            </IsometricTilt>
-          );
-        })}
-      </FloatIn>
-    </ToolScroll>
+        <div className="flex flex-wrap gap-1.5 text-[11px]">
+          <span className="chip inline-flex items-center gap-1.5"><NotebookPen className="h-3.5 w-3.5" /> Document-first</span>
+          <span className="chip inline-flex items-center gap-1.5"><Dna className="h-3.5 w-3.5" /> Biological blocks</span>
+          <span className="chip inline-flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Layered annotations</span>
+        </div>
+      </section>
+      <BioWorkspaceCanvas />
+    </div>
   );
 }

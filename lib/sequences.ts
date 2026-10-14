@@ -44,6 +44,11 @@ export interface WorkspaceSequence {
   accession?: string;
   /** GenBank DEFINITION / SnapGene description, when the source carries one. */
   description?: string;
+  metadata?: {
+    moleculeType?: string;
+    organism?: string;
+    topology?: "linear" | "circular";
+  };
   /** Edit revision — bumped on every sequence edit; the seqviz remount key. */
   revision: number;
 }
@@ -80,6 +85,106 @@ export function meltingTemp(seq: string): number {
 /** Slice a 1-based inclusive region out of a sequence. */
 export function sliceRegion(seq: string, region: SequenceSelection): string {
   return seq.slice(Math.max(0, region.start - 1), region.end);
+}
+
+const RC: Record<string, string> = {
+  A: "T",
+  T: "A",
+  C: "G",
+  G: "C",
+  R: "Y",
+  Y: "R",
+  S: "S",
+  W: "W",
+  K: "M",
+  M: "K",
+  B: "V",
+  D: "H",
+  H: "D",
+  V: "B",
+  N: "N",
+};
+
+const CODON_TABLE: Record<string, string> = {
+  TTT: "F", TTC: "F", TTA: "L", TTG: "L",
+  TCT: "S", TCC: "S", TCA: "S", TCG: "S",
+  TAT: "Y", TAC: "Y", TAA: "*", TAG: "*",
+  TGT: "C", TGC: "C", TGA: "*", TGG: "W",
+  CTT: "L", CTC: "L", CTA: "L", CTG: "L",
+  CCT: "P", CCC: "P", CCA: "P", CCG: "P",
+  CAT: "H", CAC: "H", CAA: "Q", CAG: "Q",
+  CGT: "R", CGC: "R", CGA: "R", CGG: "R",
+  ATT: "I", ATC: "I", ATA: "I", ATG: "M",
+  ACT: "T", ACC: "T", ACA: "T", ACG: "T",
+  AAT: "N", AAC: "N", AAA: "K", AAG: "K",
+  AGT: "S", AGC: "S", AGA: "R", AGG: "R",
+  GTT: "V", GTC: "V", GTA: "V", GTG: "V",
+  GCT: "A", GCC: "A", GCA: "A", GCG: "A",
+  GAT: "D", GAC: "D", GAA: "E", GAG: "E",
+  GGT: "G", GGC: "G", GGA: "G", GGG: "G",
+};
+
+export function reverseComplement(seq: string): string {
+  return seq
+    .toUpperCase()
+    .split("")
+    .reverse()
+    .map((b) => RC[b] ?? "N")
+    .join("");
+}
+
+export function translateDna(seq: string, frame = 0): string {
+  const clean = seq.toUpperCase().replace(/[^A-Z]/g, "");
+  let peptide = "";
+  for (let i = frame; i + 2 < clean.length; i += 3) {
+    peptide += CODON_TABLE[clean.slice(i, i + 3)] ?? "X";
+  }
+  return peptide;
+}
+
+export interface OrfSegment {
+  strand: 1 | -1;
+  frame: 1 | 2 | 3;
+  start: number;
+  end: number;
+  aaLength: number;
+  peptide: string;
+}
+
+export function detectOrfs(seq: string, minAaLength = 30): OrfSegment[] {
+  const clean = seq.toUpperCase().replace(/[^A-Z]/g, "");
+  const strands: { dna: string; strand: 1 | -1 }[] = [
+    { dna: clean, strand: 1 },
+    { dna: reverseComplement(clean), strand: -1 },
+  ];
+  const out: OrfSegment[] = [];
+  for (const { dna, strand } of strands) {
+    for (let frame = 0 as 0 | 1 | 2; frame < 3; frame++) {
+      const pep = translateDna(dna, frame);
+      let aaStart = -1;
+      for (let i = 0; i < pep.length; i++) {
+        const aa = pep[i];
+        if (aaStart < 0 && aa === "M") aaStart = i;
+        if (aaStart >= 0 && aa === "*") {
+          const aaLength = i - aaStart;
+          if (aaLength >= minAaLength) {
+            const start = frame + aaStart * 3 + 1;
+            const end = frame + i * 3;
+            out.push({
+              strand,
+              frame: (frame + 1) as 1 | 2 | 3,
+              start: strand === 1 ? start : clean.length - end + 1,
+              end: strand === 1 ? end : clean.length - start + 1,
+              aaLength,
+              peptide: pep.slice(aaStart, i),
+            });
+          }
+          aaStart = -1;
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => b.aaLength - a.aaLength);
 }
 
 /* ── Adapters ─────────────────────────────────────────────────────────────── */
@@ -162,6 +267,9 @@ export function teselagenToViewer(parsed: {
     enzymes: [],
     source: "file",
     description: typeof parsed.description === "string" ? parsed.description.slice(0, 500) : undefined,
+    metadata: {
+      topology: parsed.circular ? "circular" : "linear",
+    },
     revision: 0,
   };
 }
@@ -224,6 +332,11 @@ export function registryToViewer(reg: {
     enzymes: [...byEnzyme.entries()].map(([name, ranges]) => ({ name, ranges })),
     source: "backend",
     accession: reg.accession,
+    metadata: {
+      moleculeType: "DNA",
+      organism: reg.name,
+      topology: reg.topology.toLowerCase() === "circular" ? "circular" : "linear",
+    },
     revision: 0,
   };
 }
@@ -254,6 +367,10 @@ export function fastaToViewer(text: string, name?: string): WorkspaceSequence {
     features: [],
     enzymes: [],
     source: "file",
+    metadata: {
+      moleculeType: "DNA",
+      topology: "linear",
+    },
     revision: 0,
   };
 }

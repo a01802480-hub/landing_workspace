@@ -6,7 +6,7 @@
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Check, Users } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { OVERVIEW_META, WORKSPACE_TOOLS } from "@/lib/tools";
 import { useDagRunsLive } from "@/lib/dagContext";
 import { useIde, type WorkspaceTabId } from "@/lib/ide";
@@ -52,23 +52,7 @@ export function TopBar() {
         </p>
       </div>
 
-      <div className="hidden items-center gap-1.5 md:flex">
-        {["AL", "RM", "DNA"].map((member) => (
-          <span key={member} className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-ink-950/10 bg-white/80 text-[10px] font-semibold text-mist">
-            {member}
-          </span>
-        ))}
-        <span className="chip">
-          <Users className="h-3 w-3" />
-          Live
-        </span>
-      </div>
-
       <div className="ml-auto flex items-center gap-2">
-        <span className="chip hidden sm:inline-flex">
-          <Check className="h-3.5 w-3.5 text-[#0ca30c]" />
-          All changes saved
-        </span>
         {running && (
           <Link
             href="/workspace#flows"

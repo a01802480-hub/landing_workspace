@@ -62,6 +62,16 @@ export function validateSequencePayload(value: unknown): WorkspaceSequence | nul
     source: v.source === "backend" ? "backend" : v.source === "demo" ? "demo" : "file",
     accession: typeof v.accession === "string" ? v.accession.slice(0, 40) : undefined,
     description: typeof v.description === "string" ? v.description.slice(0, 500) : undefined,
+    metadata:
+      typeof v.metadata === "object" && v.metadata !== null
+        ? {
+            moleculeType:
+              typeof v.metadata.moleculeType === "string" ? v.metadata.moleculeType.slice(0, 40) : undefined,
+            organism: typeof v.metadata.organism === "string" ? v.metadata.organism.slice(0, 120) : undefined,
+            topology:
+              v.metadata.topology === "circular" ? "circular" : v.metadata.topology === "linear" ? "linear" : undefined,
+          }
+        : undefined,
     revision: typeof v.revision === "number" && Number.isInteger(v.revision) && v.revision >= 0 ? v.revision : 0,
   };
 }

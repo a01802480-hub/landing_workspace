@@ -38,6 +38,7 @@ import { SequenceEditor } from "@/components/workspace/dna/SequenceEditor";
 import { HistoryPanel } from "@/components/workspace/dna/HistoryPanel";
 import { PlasmidBuilder } from "@/components/workspace/dna/PlasmidBuilder";
 import { DigestPanel } from "@/components/workspace/dna/DigestPanel";
+import { SequenceQuickActions } from "@/components/workspace/dna/SequenceQuickActions";
 
 const PRESETS = [
   { acc: "J01749", label: "pBR322" },
@@ -401,6 +402,7 @@ export default function DnaPage() {
           </a>
         </div>
       </div>
+      <SequenceQuickActions />
     </div>
   );
 }
